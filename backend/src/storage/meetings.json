@@ -1,0 +1,163 @@
+[
+  {
+    "meeting": {
+      "id": "unique-id-1",
+      "meeting_title": "API Discussion",
+      "participants": [
+        "Suman"
+      ],
+      "participant_emails": {
+        "Suman": "suman@observancegroup.com"
+      },
+      "task": "API discussion",
+      "owner": null,
+      "deadline": null,
+      "date": "2026-05-27",
+      "time": "16:00",
+      "duration": 60,
+      "missingFields": [
+        {
+          "field": "email_Suman",
+          "type": "email",
+          "label": "Email address for Suman",
+          "question": "Please provide the email address for Suman.",
+          "participant": "Suman"
+        },
+        {
+          "field": "time",
+          "type": "time",
+          "label": "Meeting time",
+          "question": "Please provide the meeting time."
+        }
+      ]
+    },
+    "slot": {
+      "date": "2026-05-27",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "startDisplay": "11:00 AM",
+      "endDisplay": "12:00 PM",
+      "durationMinutes": 60
+    },
+    "event": {
+      "id": "mock-1779792242740",
+      "htmlLink": null,
+      "meetLink": null,
+      "status": "confirmed",
+      "demo": true,
+      "summary": "API Discussion"
+    },
+    "summary": {
+      "title": "API Discussion",
+      "task": "API discussion",
+      "owner": null,
+      "participants": [
+        {
+          "name": "Suman",
+          "email": "suman@observancegroup.com"
+        }
+      ],
+      "date": "2026-05-27",
+      "dateDisplay": "Wednesday, May 27, 2026",
+      "startTime": "11:00",
+      "endTime": "12:00",
+      "startDisplay": "11:00 AM",
+      "endDisplay": "12:00 PM",
+      "duration": 60,
+      "calendarLink": null,
+      "meetLink": null,
+      "demo": true,
+      "invitesSent": [
+        "suman@observancegroup.com"
+      ]
+    },
+    "savedAt": "2026-05-26T10:44:02.754Z"
+  },
+  {
+    "meeting": {
+      "id": "unique-id-1",
+      "meeting_title": "Meeting with Suman and Deep",
+      "participants": [
+        "Suman",
+        "Deep"
+      ],
+      "participant_emails": {
+        "Suman": "suman@observancegroup.com",
+        "Deep": "biswajisingha133@gmail.com"
+      },
+      "task": "Discuss with Suman and Deep",
+      "owner": null,
+      "deadline": null,
+      "date": "2026-05-26",
+      "time": "18:00",
+      "duration": 60,
+      "missingFields": [
+        {
+          "field": "email_Suman",
+          "type": "email",
+          "label": "Email address for Suman",
+          "question": "Please provide the email address for Suman.",
+          "participant": "Suman"
+        },
+        {
+          "field": "email_Deep",
+          "type": "email",
+          "label": "Email address for Deep",
+          "question": "Please provide the email address for Deep.",
+          "participant": "Deep"
+        },
+        {
+          "field": "time",
+          "type": "time",
+          "label": "Meeting time",
+          "question": "Please provide the meeting time."
+        }
+      ]
+    },
+    "slot": {
+      "date": "2026-05-26",
+      "startTime": "17:00",
+      "endTime": "18:00",
+      "startDisplay": "5:00 PM",
+      "endDisplay": "6:00 PM",
+      "durationMinutes": 60
+    },
+    "event": {
+      "id": "10a5t74u86te3livnsa3tv31ek",
+      "htmlLink": "https://www.google.com/calendar/event?eid=MTBhNXQ3NHU4NnRlM2xpdm5zYTN0djMxZWsgYmlzd2FqaXRzQG9ic2VydmFuY2Vncm91cC5jb20",
+      "meetLink": "https://meet.google.com/mux-jwfn-hrn",
+      "status": "confirmed",
+      "demo": false
+    },
+    "summary": {
+      "title": "Meeting with Suman and Deep",
+      "task": "Discuss with Suman and Deep",
+      "owner": null,
+      "participants": [
+        {
+          "name": "Suman",
+          "email": "suman@observancegroup.com"
+        },
+        {
+          "name": "Deep",
+          "email": "biswajisingha133@gmail.com"
+        }
+      ],
+      "date": "2026-05-26",
+      "dateDisplay": "Tuesday, May 26, 2026",
+      "startTime": "17:00",
+      "endTime": "18:00",
+      "startDisplay": "5:00 PM",
+      "endDisplay": "6:00 PM",
+      "duration": 60,
+      "calendarLink": "https://www.google.com/calendar/event?eid=MTBhNXQ3NHU4NnRlM2xpdm5zYTN0djMxZWsgYmlzd2FqaXRzQG9ic2VydmFuY2Vncm91cC5jb20",
+      "meetLink": "https://meet.google.com/mux-jwfn-hrn",
+      "demo": false,
+      "invitesSent": [
+        "suman@observancegroup.com",
+        "biswajisingha133@gmail.com"
+      ]
+    },
+    "savedAt": "2026-05-26T11:00:10.033Z"
+  }
+]
