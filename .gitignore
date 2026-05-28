@@ -22,3 +22,5 @@ logs
 # IDE
 .vscode/
 .idea/
+
+backend/src/storage/google_tokens.json
