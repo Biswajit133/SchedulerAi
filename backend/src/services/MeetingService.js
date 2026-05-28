@@ -27,7 +27,7 @@ class MeetingService {
     const meetings = (parsed.meetings || []).map((m) => {
       const base = {
         id: m.id || uuidv4(),
-        meeting_title: m.meeting_title || 'Untitled Meeting',
+        meeting_title: m.meeting_title || null,
         participants: m.participants || [],
         participant_emails: m.participant_emails || {},
         task: m.task || '',
@@ -35,7 +35,7 @@ class MeetingService {
         deadline: m.deadline || null,
         date: m.date || null,
         time: m.time || null,
-        duration: m.duration || 60,
+        duration: m.duration || null,
       };
       // Enrich date/time from NL if AI didn't extract them
       const enriched = NaturalLanguageParser.enrichFromText(base, notes);
@@ -49,6 +49,15 @@ class MeetingService {
 
   findMissingFields(meeting) {
     const missing = [];
+
+    if (!meeting.meeting_title) {
+      missing.push({
+        field: 'meeting_title',
+        type: 'text',
+        label: 'Meeting topic',
+        question: 'What is the meeting about?',
+      });
+    }
 
     if (!meeting.participants || meeting.participants.length === 0) {
       missing.push({
@@ -106,7 +115,9 @@ class MeetingService {
     const updated = { ...meeting, participant_emails: { ...meeting.participant_emails } };
 
     for (const [field, value] of Object.entries(answers)) {
-      if (field === 'participants') {
+      if (field === 'meeting_title') {
+        updated.meeting_title = value.trim();
+      } else if (field === 'participants') {
         const lower = value.toLowerCase().trim();
         if (['just me', 'none', 'no one', 'skip', 'only me'].includes(lower)) {
           updated.participants = [];

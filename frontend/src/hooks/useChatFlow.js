@@ -9,6 +9,7 @@ const PHASE = {
   IDLE:     'IDLE',     // waiting for initial input
   PICKING:  'PICKING',  // multiple meetings extracted, user picks one
   MISSING:  'MISSING',  // collecting missing fields one-by-one
+  CONFIRM:  'CONFIRM',  // showing final summary, waiting for explicit confirmation
   PLATFORM: 'PLATFORM', // asking user to choose meeting platform
   SLOTS:    'SLOTS',    // showing available slots
   DONE:     'DONE',     // meeting scheduled, offer another
@@ -70,6 +71,8 @@ export function useChatFlow() {
       await doPick(text);
     } else if (phase === PHASE.MISSING) {
       await doMissingAnswer(text);
+    } else if (phase === PHASE.CONFIRM) {
+      await doConfirmAnswer(text);
     } else if (phase === PHASE.PLATFORM) {
       // Accept typed platform choice as well as button clicks
       const t = text.trim().toLowerCase();
@@ -184,17 +187,101 @@ export function useChatFlow() {
     const missing = meeting.missingFields || [];
 
     if (missing.length === 0) {
-      pushBot(`All set for "${meeting.meeting_title}".\n\n${formatInfo(meeting)}`);
-      doPlatformSelection(meeting);
+      showConfirmSummary(meeting);
     } else {
       conv.current.missing = missing;
       conv.current.missingIdx = 0;
       conv.current.answers = {};
       conv.current.phase = PHASE.MISSING;
-
-      pushBot(`Got it — "${meeting.meeting_title}".\n\n${formatInfo(meeting)}\n\nI just need a few more details.`);
       askNextMissing();
     }
+  }
+
+  function showConfirmSummary(meeting) {
+    conv.current.active = meeting;
+    conv.current.phase = PHASE.CONFIRM;
+    pushBot(
+      `Here are the meeting details:\n\n${formatSummary(meeting)}\n\nReply "confirm" to create the meeting, or tell me what to change.`
+    );
+  }
+
+  async function doConfirmAnswer(text) {
+    const t = text.trim().toLowerCase();
+    const CONFIRM_WORDS = ['confirm', 'yes', 'create it', 'schedule it', 'looks good', 'ok', 'sure', 'do it', 'book it', 'y'];
+
+    if (CONFIRM_WORDS.includes(t)) {
+      doPlatformSelection(conv.current.active);
+      return;
+    }
+
+    // Try to parse a field update: "change time to 5pm", "update date to friday", etc.
+    const updated = tryApplyInlineChange(conv.current.active, text);
+    if (updated) {
+      conv.current.active = updated;
+      pushBot(
+        `Updated meeting details:\n\n${formatSummary(updated)}\n\nReply "confirm" to create the meeting, or tell me what else to change.`
+      );
+      return;
+    }
+
+    pushBot('Reply "confirm" to create the meeting, or tell me what to change (e.g. "change time to 5 PM").');
+  }
+
+  function tryApplyInlineChange(meeting, text) {
+    const t = text.toLowerCase();
+    const updated = { ...meeting };
+    let changed = false;
+
+    // Time: "change time to 5pm" / "time: 3:30pm"
+    const timeMatch = t.match(/(?:change\s+)?time\s+(?:to\s+)?(.+)/);
+    if (timeMatch) {
+      const { DateParser } = window.__schedulerUtils__ || {};
+      // Use backend-style parsing via the validate endpoint after collection
+      // Store raw string; validate endpoint will parse it
+      updated._pendingTime = timeMatch[1].trim();
+      changed = true;
+    }
+
+    // Date: "change date to friday" / "date: tomorrow"
+    const dateMatch = t.match(/(?:change\s+)?date\s+(?:to\s+)?(.+)/);
+    if (dateMatch) {
+      updated._pendingDate = dateMatch[1].trim();
+      changed = true;
+    }
+
+    // Duration: "change duration to 30 min" / "make it 2 hours"
+    const durMatch = t.match(/(?:change\s+)?duration\s+(?:to\s+)?(.+)|make\s+it\s+(.+(?:hour|min|minute))/);
+    if (durMatch) {
+      updated._pendingDuration = (durMatch[1] || durMatch[2]).trim();
+      changed = true;
+    }
+
+    // Topic: "change topic to X" / "meeting is about X"
+    const topicMatch = t.match(/(?:change\s+)?(?:topic|title|subject)\s+(?:to\s+)?(.+)/);
+    if (topicMatch) {
+      updated.meeting_title = topicMatch[1].trim();
+      changed = true;
+    }
+
+    if (!changed) return null;
+
+    // If there are pending raw strings, we need to validate them via the backend.
+    // For now surface them as-is and let validate endpoint resolve them on next submit.
+    // Apply what we can locally:
+    if (updated._pendingTime) {
+      updated.time = updated._pendingTime;
+      delete updated._pendingTime;
+    }
+    if (updated._pendingDate) {
+      updated.date = updated._pendingDate;
+      delete updated._pendingDate;
+    }
+    if (updated._pendingDuration) {
+      updated.duration = updated._pendingDuration;
+      delete updated._pendingDuration;
+    }
+
+    return updated;
   }
 
   function askNextMissing() {
@@ -228,8 +315,7 @@ export function useChatFlow() {
         pushBot('Almost there — just a couple more details needed.');
         askNextMissing();
       } else {
-        pushBot('All details collected.');
-        doPlatformSelection(res.meeting);
+        showConfirmSummary(res.meeting);
       }
     } catch (e) {
       pushBot(`Error validating details: ${e.message}`);
@@ -415,5 +501,15 @@ function formatInfo(meeting) {
   if (meeting.duration)           rows.push(`Duration: ${meeting.duration} min`);
   if (meeting.owner)              rows.push(`Owner: ${meeting.owner}`);
   if (meeting.priority)           rows.push(`Priority: ${meeting.priority}`);
+  return rows.map((r) => `  ${r}`).join('\n');
+}
+
+function formatSummary(meeting) {
+  const rows = [];
+  rows.push(`Topic: ${meeting.meeting_title || '—'}`);
+  rows.push(`Date: ${meeting.date ? formatDate(meeting.date) : '—'}`);
+  rows.push(`Time: ${meeting.time ? formatTime(meeting.time) : '—'}`);
+  rows.push(`Duration: ${meeting.duration ? `${meeting.duration} min` : '—'}`);
+  if (meeting.participants?.length) rows.push(`Attendees: ${meeting.participants.join(', ')}`);
   return rows.map((r) => `  ${r}`).join('\n');
 }

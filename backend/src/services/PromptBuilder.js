@@ -26,14 +26,15 @@ Parse relative dates/times relative to today and current time:
 - "Monday/Tuesday/.../Sunday" = the NEXT occurrence of that weekday
 - "next week" = 7 days from today
 - "Friday" = the next upcoming Friday
-- "morning" = 09:00, "afternoon" = 13:00, "evening" = 17:00
+- "noon" = 12:00, "midnight" = 00:00
+- NEVER assume a time for vague phrases like "morning", "afternoon", "evening", "tonight" — set time to null so the user can be asked
 
 Return ONLY a valid JSON object with this exact structure. No markdown, no explanation:
 {
   "meetings": [
     {
       "id": "unique-id-1",
-      "meeting_title": "string (concise title)",
+      "meeting_title": "string (concise title based ONLY on what the user explicitly stated, or null if no topic was given)",
       "participants": ["Full Name 1", "Full Name 2"],
       "participant_emails": {"Full Name 1": null, "Full Name 2": null},
       "task": "string (what needs to be done)",
@@ -41,7 +42,7 @@ Return ONLY a valid JSON object with this exact structure. No markdown, no expla
       "deadline": "YYYY-MM-DD or null",
       "date": "YYYY-MM-DD or null",
       "time": "HH:MM (24h) or null",
-      "duration": 60
+      "duration": null
     }
   ]
 }
@@ -50,8 +51,9 @@ Rules:
 - Extract EACH separate task/meeting as its own entry
 - Set participant_emails values to null if not mentioned
 - Convert all relative dates to absolute YYYY-MM-DD format
-- Default duration to 60 if not specified
-- meeting_title should be descriptive (e.g. "Frontend Login Page Development")
+- NEVER default duration — if the user did not explicitly state a duration, set it to null
+- meeting_title must reflect only what the user said (e.g. "Frontend Login Page Development"). If the user gave no topic, set to null
+- NEVER invent titles like "Ad Hoc Meeting", "General Discussion", "Quick Sync", "Untitled Meeting"
 - owner is the person assigned to do the task
 - If the request says "urgent", "now", "asap", or "immediately" — set date to ${today} and time to ${currentTime}`;
   }

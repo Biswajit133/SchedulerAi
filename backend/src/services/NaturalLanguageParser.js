@@ -1,13 +1,10 @@
 const DateParser = require('../utils/DateParser');
 
+// Only precise terms are auto-resolved; vague ones (morning/afternoon/evening/tonight/night)
+// must be collected conversationally so the user provides an exact time.
 const TIME_OF_DAY = {
-  'morning':   '09:00',
-  'afternoon': '13:00',
-  'evening':   '17:00',
-  'tonight':   '19:00',
-  'night':     '19:00',
-  'noon':      '12:00',
-  'midnight':  '00:00',
+  'noon':     '12:00',
+  'midnight': '00:00',
 };
 
 const DAY_PHRASES = [
