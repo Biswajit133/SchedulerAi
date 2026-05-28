@@ -8,13 +8,20 @@ const router = Router();
 router.post('/meetings/extract', validateExtract, controller.extract.bind(controller));
 router.post('/meetings/validate', controller.validate.bind(controller));
 router.get('/meetings/slots', controller.getSlots.bind(controller));
+router.get('/meetings/suggest', controller.smartSuggest.bind(controller));
+router.post('/meetings/summary', controller.getMeetingSummary.bind(controller));
 router.post('/meetings/schedule', validateSchedule, controller.schedule.bind(controller));
 router.get('/meetings', controller.list.bind(controller));
+
+// Agenda
+router.get('/agenda/today', controller.getTodayAgenda.bind(controller));
 
 // Auth
 router.get('/auth/google', controller.googleAuth.bind(controller));
 router.get('/auth/google/callback', controller.googleCallback.bind(controller));
 router.get('/auth/status', controller.authStatus.bind(controller));
+router.get('/auth/me', controller.authMe.bind(controller));
+router.post('/auth/logout', controller.authLogout.bind(controller));
 router.get('/auth/diagnostics', controller.authDiagnostics.bind(controller));
 
 // Health

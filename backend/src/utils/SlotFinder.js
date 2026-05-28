@@ -1,13 +1,24 @@
 const DateParser = require('./DateParser');
 
-const WORK_START = 9 * 60;   // 9:00 AM
-const WORK_END = 18 * 60;    // 6:00 PM
-const SLOT_GRANULARITY = 30; // minutes
+const WORK_START = 7 * 60;    // 7:00 AM
+const WORK_END   = 22 * 60;   // 10:00 PM
+const SLOT_GRANULARITY = 15;  // minutes (finer grain for "now" use-cases)
 
 class SlotFinder {
-  static findAvailableSlots(busySlots, date, durationMinutes) {
+  /**
+   * @param {Array}  busySlots
+   * @param {string} date            ISO YYYY-MM-DD
+   * @param {number} durationMinutes
+   * @param {number|null} minStartMinutes  If set, slots before this minute-of-day are excluded.
+   *                                       Pass null (or omit) to use WORK_START.
+   */
+  static findAvailableSlots(busySlots, date, durationMinutes, minStartMinutes = null) {
     const duration = durationMinutes || 60;
-    const freeRanges = this._getFreeRanges(busySlots, date);
+    const startFloor = minStartMinutes !== null
+      ? Math.max(WORK_START, minStartMinutes)
+      : WORK_START;
+
+    const freeRanges = this._getFreeRanges(busySlots, date, startFloor);
     const slots = [];
 
     for (const { start, end } of freeRanges) {
@@ -16,9 +27,9 @@ class SlotFinder {
         slots.push({
           date,
           startTime: DateParser.minutesToTime(cursor),
-          endTime: DateParser.minutesToTime(cursor + duration),
+          endTime:   DateParser.minutesToTime(cursor + duration),
           startDisplay: DateParser.formatTimeDisplay(DateParser.minutesToTime(cursor)),
-          endDisplay: DateParser.formatTimeDisplay(DateParser.minutesToTime(cursor + duration)),
+          endDisplay:   DateParser.formatTimeDisplay(DateParser.minutesToTime(cursor + duration)),
           durationMinutes: duration,
         });
         cursor += SLOT_GRANULARITY;
@@ -28,17 +39,17 @@ class SlotFinder {
     return slots;
   }
 
-  static _getFreeRanges(busySlots, date) {
+  static _getFreeRanges(busySlots, date, startFloor = WORK_START) {
     const busy = (busySlots || [])
       .filter((s) => s.date === date || !s.date)
       .map((s) => ({
         start: DateParser.timeToMinutes(s.startTime),
-        end: DateParser.timeToMinutes(s.endTime),
+        end:   DateParser.timeToMinutes(s.endTime),
       }))
       .sort((a, b) => a.start - b.start);
 
     const free = [];
-    let cursor = WORK_START;
+    let cursor = startFloor;
 
     for (const { start, end } of busy) {
       if (start > cursor) {
@@ -59,21 +70,33 @@ class SlotFinder {
       .filter((event) => event.start && event.end)
       .map((event) => {
         const startDt = new Date(event.start.dateTime || event.start.date);
-        const endDt = new Date(event.end.dateTime || event.end.date);
-        const eventDate = startDt.toISOString().split('T')[0];
-        if (eventDate !== date) return null;
+        const endDt   = new Date(event.end.dateTime   || event.end.date);
+        // Use LOCAL date (getFullYear/Month/Date), not UTC from toISOString(),
+        // so events aren't dropped in UTC+ timezones where toISOString() can
+        // give the previous day for early-morning local events.
+        const localDate = `${startDt.getFullYear()}-${String(startDt.getMonth() + 1).padStart(2, '0')}-${String(startDt.getDate()).padStart(2, '0')}`;
+        if (localDate !== date) return null;
         const startTime = `${String(startDt.getHours()).padStart(2, '0')}:${String(startDt.getMinutes()).padStart(2, '0')}`;
-        const endTime = `${String(endDt.getHours()).padStart(2, '0')}:${String(endDt.getMinutes()).padStart(2, '0')}`;
+        const endTime   = `${String(endDt.getHours()).padStart(2, '0')}:${String(endDt.getMinutes()).padStart(2, '0')}`;
         return { date, startTime, endTime, title: event.summary || 'Busy' };
       })
       .filter(Boolean);
   }
 
   static getMockBusySlots(date) {
+    const now = new Date();
+    const h   = now.getHours();
+    const hh  = (n) => String(n).padStart(2, '0');
+    // Put one mock busy slot 1 hour from now so "urgent" testing shows a real conflict
     return [
-      { date, startTime: '10:00', endTime: '11:00', title: 'Standup' },
-      { date, startTime: '13:00', endTime: '14:00', title: 'Lunch' },
+      { date, startTime: `${hh(h + 1)}:00`, endTime: `${hh(h + 2)}:00`, title: 'Team Standup' },
     ];
+  }
+
+  // Returns current time-of-day in minutes
+  static currentMinutes() {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
   }
 }
 

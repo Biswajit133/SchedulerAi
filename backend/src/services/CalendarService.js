@@ -1,17 +1,15 @@
 const { google } = require('googleapis');
-const { getAuthenticatedClient } = require('../config/googleAuth');
 const SlotFinder = require('../utils/SlotFinder');
 
 class CalendarService {
-  async getEvents(date) {
-    const auth = await getAuthenticatedClient();
-    if (!auth) {
+  async getEvents(date, authClient) {
+    if (!authClient) {
       return { events: [], busySlots: SlotFinder.getMockBusySlots(date), demo: true };
     }
 
-    const calendar = google.calendar({ version: 'v3', auth });
+    const calendar = google.calendar({ version: 'v3', auth: authClient });
     const startOfDay = new Date(`${date}T00:00:00`).toISOString();
-    const endOfDay = new Date(`${date}T23:59:59`).toISOString();
+    const endOfDay   = new Date(`${date}T23:59:59`).toISOString();
 
     const response = await calendar.events.list({
       calendarId: 'primary',
@@ -26,9 +24,7 @@ class CalendarService {
     return { events, busySlots, demo: false };
   }
 
-  async createEvent(meeting, slot) {
-    const auth = await getAuthenticatedClient();
-
+  async createEvent(meeting, slot, authClient) {
     const startDateTime = new Date(`${slot.date}T${slot.startTime}:00`).toISOString();
     const endDateTime = new Date(`${slot.date}T${slot.endTime}:00`).toISOString();
 
@@ -54,11 +50,11 @@ class CalendarService {
       },
     };
 
-    if (!auth) {
-      return this._createMockEvent(eventBody, meeting);
+    if (!authClient) {
+      return this._createMockEvent(eventBody);
     }
 
-    const calendar = google.calendar({ version: 'v3', auth });
+    const calendar = google.calendar({ version: 'v3', auth: authClient });
     const response = await calendar.events.insert({
       calendarId: 'primary',
       resource: eventBody,
@@ -75,7 +71,7 @@ class CalendarService {
     };
   }
 
-  _createMockEvent(eventBody, meeting) {
+  _createMockEvent(eventBody) {
     return {
       id: `mock-${Date.now()}`,
       htmlLink: null,

@@ -6,6 +6,9 @@ const PromptBuilder = require('./PromptBuilder');
 const ConflictService = require('./ConflictService');
 const CalendarService = require('./CalendarService');
 const DateParser = require('../utils/DateParser');
+const NaturalLanguageParser = require('./NaturalLanguageParser');
+const PriorityService = require('./PriorityService');
+const SmartSlotService = require('./SmartSlotService');
 
 const STORAGE_PATH = path.join(__dirname, '../storage/meetings.json');
 
@@ -20,18 +23,24 @@ class MeetingService {
     const prompt = PromptBuilder.extractMeetingInfo(notes);
     const raw = await this.ai.generate(prompt);
     const parsed = this.ai.parseJSON(raw);
-    const meetings = (parsed.meetings || []).map((m) => ({
-      id: m.id || uuidv4(),
-      meeting_title: m.meeting_title || 'Untitled Meeting',
-      participants: m.participants || [],
-      participant_emails: m.participant_emails || {},
-      task: m.task || '',
-      owner: m.owner || null,
-      deadline: m.deadline || null,
-      date: m.date || null,
-      time: m.time || null,
-      duration: m.duration || 60,
-    }));
+    const meetings = (parsed.meetings || []).map((m) => {
+      const base = {
+        id: m.id || uuidv4(),
+        meeting_title: m.meeting_title || 'Untitled Meeting',
+        participants: m.participants || [],
+        participant_emails: m.participant_emails || {},
+        task: m.task || '',
+        owner: m.owner || null,
+        deadline: m.deadline || null,
+        date: m.date || null,
+        time: m.time || null,
+        duration: m.duration || 60,
+      };
+      // Enrich date/time from NL if AI didn't extract them
+      const enriched = NaturalLanguageParser.enrichFromText(base, notes);
+      // Annotate priority
+      return { ...enriched, priority: PriorityService.detectFromMeeting(enriched) };
+    });
     return meetings;
   }
 
@@ -40,16 +49,23 @@ class MeetingService {
   findMissingFields(meeting) {
     const missing = [];
 
-    const missingEmails = (meeting.participants || []).filter(
-      (name) => !meeting.participant_emails?.[name]
-    );
-    if (missingEmails.length > 0) {
+    if (!meeting.participants || meeting.participants.length === 0) {
+      missing.push({
+        field: 'participants',
+        type: 'participants',
+        label: 'Meeting participants',
+        question: 'Who should be invited? List their names separated by commas, or type "just me" to skip.',
+      });
+    } else {
+      const missingEmails = meeting.participants.filter(
+        (name) => !meeting.participant_emails?.[name]
+      );
       missingEmails.forEach((name) => {
         missing.push({
           field: `email_${name}`,
           type: 'email',
           label: `Email address for ${name}`,
-          question: `Please provide the email address for ${name}.`,
+          question: `What is the email address for ${name}?`,
           participant: name,
         });
       });
@@ -89,7 +105,17 @@ class MeetingService {
     const updated = { ...meeting, participant_emails: { ...meeting.participant_emails } };
 
     for (const [field, value] of Object.entries(answers)) {
-      if (field.startsWith('email_')) {
+      if (field === 'participants') {
+        const lower = value.toLowerCase().trim();
+        if (['just me', 'none', 'no one', 'skip', 'only me'].includes(lower)) {
+          updated.participants = [];
+        } else {
+          updated.participants = value.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+          updated.participants.forEach((name) => {
+            if (!updated.participant_emails[name]) updated.participant_emails[name] = null;
+          });
+        }
+      } else if (field.startsWith('email_')) {
         const name = field.replace('email_', '');
         updated.participant_emails[name] = value;
       } else if (field === 'date') {
@@ -106,20 +132,27 @@ class MeetingService {
 
   // ─── Calendar + Scheduling ─────────────────────────────────────────────────
 
-  async checkCalendarAvailability(date, durationMinutes) {
-    return ConflictService.getAvailability(date, durationMinutes);
+  async checkCalendarAvailability(date, durationMinutes, authClient) {
+    return ConflictService.getAvailability(date, durationMinutes, authClient);
   }
 
-  async findAvailableSlots(date, durationMinutes) {
+  async findAvailableSlots(date, durationMinutes, authClient) {
     const { availableSlots, busySlots, demo } = await ConflictService.getAvailability(
       date,
-      durationMinutes
+      durationMinutes,
+      authClient
     );
     return { availableSlots, busySlots, demo };
   }
 
-  async createGoogleMeeting(meeting, slot) {
-    const event = await CalendarService.createEvent(meeting, slot);
+  async smartSuggestSlots(date, requestedTime, durationMinutes, authClient) {
+    const { busySlots, demo } = await ConflictService.getAvailability(date, durationMinutes, authClient);
+    const result = SmartSlotService.checkAndSuggest(requestedTime, busySlots, date, durationMinutes);
+    return { ...result, demo };
+  }
+
+  async createGoogleMeeting(meeting, slot, authClient) {
+    const event = await CalendarService.createEvent(meeting, slot, authClient);
     return event;
   }
 

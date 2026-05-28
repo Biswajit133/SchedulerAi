@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --input-type=module)",
+      "Bash(node -e \"require\\('express-session'\\)\")",
+      "Bash(node -e \"require\\('./src/controllers/MeetingController'\\)\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/controllers/MeetingController'\\);\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const g = require\\('./src/config/googleAuth'\\); console.log\\(Object.keys\\(g\\)\\);\")"
+    ]
+  }
+}

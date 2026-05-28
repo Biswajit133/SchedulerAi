@@ -45,11 +45,37 @@ class DateParser {
     // Already an ISO date
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
 
-    // Try parsing natural formats: "May 30", "30 May", "05/30/2025"
-    const parsed = new Date(text);
-    if (!isNaN(parsed.getTime())) return this.toISODate(parsed);
+    // Month-name formats: "May 30", "30 May", "May 30 2026", "30 May 2026"
+    const MONTH_MAP = {
+      jan:1, january:1, feb:2, february:2, mar:3, march:3,
+      apr:4, april:4, may:5, jun:6, june:6, jul:7, july:7,
+      aug:8, august:8, sep:9, september:9, oct:10, october:10,
+      nov:11, november:11, dec:12, december:12,
+    };
+    // "May 30" or "May 30 2026"
+    const mName1 = lower.match(/^([a-z]+)\s+(\d{1,2})(?:[,\s]+(\d{4}))?$/);
+    if (mName1 && MONTH_MAP[mName1[1]]) {
+      const year = mName1[3] ? parseInt(mName1[3]) : referenceDate.getFullYear();
+      return this._buildISO(year, MONTH_MAP[mName1[1]], parseInt(mName1[2]));
+    }
+    // "30 May" or "30 May 2026"
+    const mName2 = lower.match(/^(\d{1,2})\s+([a-z]+)(?:[,\s]+(\d{4}))?$/);
+    if (mName2 && MONTH_MAP[mName2[2]]) {
+      const year = mName2[3] ? parseInt(mName2[3]) : referenceDate.getFullYear();
+      return this._buildISO(year, MONTH_MAP[mName2[2]], parseInt(mName2[1]));
+    }
+
+    // MM/DD/YYYY or MM-DD-YYYY with explicit year
+    const slash = lower.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (slash) return this._buildISO(parseInt(slash[3]), parseInt(slash[1]), parseInt(slash[2]));
 
     return null;
+  }
+
+  static _buildISO(year, month, day) {
+    if (!year || !month || !day) return null;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   }
 
   static parseTime(text) {

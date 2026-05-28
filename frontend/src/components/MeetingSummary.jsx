@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function MeetingSummary({ meetings, onSelectMeeting }) {
+export default function MeetingSummary({ meetings, onSelectMeeting, renderBadge }) {
   if (!meetings?.length) return null;
 
   return (
@@ -16,14 +16,14 @@ export default function MeetingSummary({ meetings, onSelectMeeting }) {
 
       <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
         {meetings.map((m) => (
-          <MeetingCard key={m.id} meeting={m} onSelect={onSelectMeeting} />
+          <MeetingCard key={m.id} meeting={m} onSelect={onSelectMeeting} renderBadge={renderBadge} />
         ))}
       </div>
     </div>
   );
 }
 
-function MeetingCard({ meeting, onSelect }) {
+function MeetingCard({ meeting, onSelect, renderBadge }) {
   const hasIssues = meeting.missingFields?.length > 0;
 
   return (
@@ -35,15 +35,18 @@ function MeetingCard({ meeting, onSelect }) {
         <h3 className="font-semibold text-white text-base leading-snug group-hover:text-brand-400 transition-colors">
           {meeting.meeting_title}
         </h3>
-        {hasIssues ? (
-          <span className="badge bg-amber-500/20 text-amber-400 border border-amber-500/30 ml-2 shrink-0">
-            {meeting.missingFields.length} missing
-          </span>
-        ) : (
-          <span className="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 ml-2 shrink-0">
-            Ready
-          </span>
-        )}
+        <div className="flex items-center gap-2 ml-2 shrink-0 flex-wrap justify-end">
+          {renderBadge?.(meeting)}
+          {hasIssues ? (
+            <span className="badge bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              {meeting.missingFields.length} missing
+            </span>
+          ) : (
+            <span className="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              Ready
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2 text-sm">

@@ -3,6 +3,7 @@ import axios from 'axios';
 const api = axios.create({
   baseURL: '/api',
   timeout: 30000,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -22,13 +23,23 @@ export const MeetingAPI = {
   extract: (notes) => api.post('/meetings/extract', { notes }),
   validate: (meeting, answers) => api.post('/meetings/validate', { meeting, answers }),
   getSlots: (date, duration) => api.get('/meetings/slots', { params: { date, duration } }),
+  smartSuggest: (date, time, duration) =>
+    api.get('/meetings/suggest', { params: { date, time, duration } }),
+  getSummary: (meetings) => api.post('/meetings/summary', { meetings }),
   schedule: (meeting, slot) => api.post('/meetings/schedule', { meeting, slot }),
   list: () => api.get('/meetings'),
+};
+
+export const AgendaAPI = {
+  getToday: () => api.get('/agenda/today'),
+  getForDate: (date) => api.get('/agenda/today', { params: { date } }),
 };
 
 export const AuthAPI = {
   getGoogleAuthUrl: () => api.get('/auth/google'),
   getStatus: () => api.get('/auth/status'),
+  getMe: () => api.get('/auth/me'),
+  logout: () => api.post('/auth/logout'),
 };
 
 export const HealthAPI = {
