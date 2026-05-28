@@ -24,7 +24,13 @@ class CalendarService {
     return { events, busySlots, demo: false };
   }
 
-  async createEvent(meeting, slot, authClient) {
+  async createEvent(meeting, slot, authClient, platformOptions = {}) {
+    const {
+      platform = 'google_meet',
+      meetingLink = null,
+      platformMeetingId = null,
+    } = platformOptions;
+
     const startDateTime = new Date(`${slot.date}T${slot.startTime}:00`).toISOString();
     const endDateTime = new Date(`${slot.date}T${slot.endTime}:00`).toISOString();
 
@@ -32,9 +38,22 @@ class CalendarService {
       .filter(([, email]) => email)
       .map(([displayName, email]) => ({ email, displayName }));
 
+    // Build description — for Zoom always embed the join link
+    let description = meeting.task || '';
+    if (platform === 'zoom' && meetingLink) {
+      const zoomSection = [
+        'Join Zoom Meeting:',
+        meetingLink,
+        platformMeetingId ? `Meeting ID: ${platformMeetingId}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      description = description ? `${description}\n\n${zoomSection}` : zoomSection;
+    }
+
     const eventBody = {
       summary: meeting.meeting_title,
-      description: meeting.task || '',
+      description,
       start: { dateTime: startDateTime, timeZone: process.env.TIMEZONE || 'UTC' },
       end: { dateTime: endDateTime, timeZone: process.env.TIMEZONE || 'UTC' },
       attendees,
@@ -45,13 +64,17 @@ class CalendarService {
           { method: 'popup', minutes: 10 },
         ],
       },
-      conferenceData: {
-        createRequest: { requestId: `scheduler-${Date.now()}` },
-      },
     };
 
+    // Only request a Google Meet conference link when platform is google_meet
+    if (platform === 'google_meet') {
+      eventBody.conferenceData = {
+        createRequest: { requestId: `scheduler-${Date.now()}` },
+      };
+    }
+
     if (!authClient) {
-      return this._createMockEvent(eventBody);
+      return this._createMockEvent(eventBody, platform, meetingLink);
     }
 
     const calendar = google.calendar({ version: 'v3', auth: authClient });
@@ -59,23 +82,27 @@ class CalendarService {
       calendarId: 'primary',
       resource: eventBody,
       sendUpdates: 'all',
-      conferenceDataVersion: 1,
+      conferenceDataVersion: platform === 'google_meet' ? 1 : 0,
     });
 
     return {
       id: response.data.id,
       htmlLink: response.data.htmlLink,
-      meetLink: response.data.hangoutLink,
+      meetLink: platform === 'google_meet' ? response.data.hangoutLink : meetingLink,
+      platform,
+      platformMeetingId: platformMeetingId || null,
       status: response.data.status,
       demo: false,
     };
   }
 
-  _createMockEvent(eventBody) {
+  _createMockEvent(eventBody, platform = 'google_meet', meetingLink = null) {
     return {
       id: `mock-${Date.now()}`,
       htmlLink: null,
-      meetLink: null,
+      meetLink: platform === 'google_meet' ? null : meetingLink,
+      platform,
+      platformMeetingId: null,
       status: 'confirmed',
       demo: true,
       summary: eventBody.summary,

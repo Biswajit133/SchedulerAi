@@ -9,6 +9,7 @@ const {
   getSessionUser,
   logout,
 } = require('../config/googleAuth');
+const zoomAuth = require('../config/zoomAuth');
 
 class MeetingController {
   // ─── Helper: resolve auth client for this request ─────────────────────────
@@ -82,12 +83,29 @@ class MeetingController {
         return res.status(400).json({ error: 'meeting and slot are required' });
       }
 
-      const authClient = await this._auth(req);
-      const event = await MeetingService.createGoogleMeeting(meeting, slot, authClient);
-      const invites = await MeetingService.sendInvites(meeting, event);
-      const summary = MeetingService.generateSummary(meeting, slot, event);
+      // Accept platform from the meeting object (set by frontend after platform selection)
+      const meetingWithPlatform = {
+        ...meeting,
+        platform: meeting.platform || 'google_meet',
+      };
 
-      MeetingService.saveMeeting({ meeting, slot, event, summary });
+      const authClient = await this._auth(req);
+      const zoomAccessToken = meetingWithPlatform.platform === 'zoom'
+        ? await zoomAuth.getAccessToken(req)
+        : null;
+      const event = await MeetingService.createGoogleMeeting(meetingWithPlatform, slot, authClient, zoomAccessToken);
+      const invites = await MeetingService.sendInvites(meetingWithPlatform, event);
+      const summary = MeetingService.generateSummary(meetingWithPlatform, slot, event);
+
+      MeetingService.saveMeeting({
+        meeting: meetingWithPlatform,
+        slot,
+        event,
+        summary,
+        platform: meetingWithPlatform.platform,
+        meetingLink: event.meetLink || null,
+        platformMeetingId: event.platformMeetingId || null,
+      });
 
       res.json({ success: true, summary, event, invites });
     } catch (err) {
@@ -202,6 +220,58 @@ class MeetingController {
   async authLogout(req, res) {
     try {
       await logout(req);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ─── Zoom Auth ─────────────────────────────────────────────────────────────
+
+  // GET /api/auth/zoom
+  zoomAuth(req, res) {
+    try {
+      const url = zoomAuth.getAuthUrl();
+      res.json({ url });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // GET /api/auth/zoom/callback
+  async zoomCallback(req, res) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    console.log('[zoomCallback] query params received:', JSON.stringify(req.query));
+    try {
+      const { code, error, error_description } = req.query;
+      if (error) {
+        const reason = error_description || error;
+        console.error('[zoomCallback] Zoom returned error:', error, error_description);
+        return res.redirect(`${frontendUrl}?zoom_auth=error&reason=${encodeURIComponent(reason)}`);
+      }
+      if (!code) {
+        console.error('[zoomCallback] No code and no error in query. Full query:', req.query);
+        return res.redirect(`${frontendUrl}?zoom_auth=error&reason=${encodeURIComponent('No authorization code received from Zoom')}`);
+      }
+      await zoomAuth.exchangeCode(code, req);
+      res.redirect(`${frontendUrl}?zoom_auth=success`);
+    } catch (err) {
+      console.error('[zoomCallback] Exception:', err.message);
+      res.redirect(`${frontendUrl}?zoom_auth=error&reason=${encodeURIComponent(err.message || 'unknown')}`);
+    }
+  }
+
+  // GET /api/auth/zoom/status
+  zoomStatus(req, res) {
+    const authenticated = zoomAuth.isAuthenticated(req);
+    const user = zoomAuth.getSessionUser(req);
+    res.json({ authenticated, user });
+  }
+
+  // POST /api/auth/zoom/disconnect
+  async zoomDisconnect(req, res) {
+    try {
+      await zoomAuth.disconnect(req);
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });

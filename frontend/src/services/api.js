@@ -42,6 +42,12 @@ export const AuthAPI = {
   logout: () => api.post('/auth/logout'),
 };
 
+export const ZoomAuthAPI = {
+  getAuthUrl: () => api.get('/auth/zoom'),
+  getStatus: () => api.get('/auth/zoom/status'),
+  disconnect: () => api.post('/auth/zoom/disconnect'),
+};
+
 export const HealthAPI = {
   check: () => api.get('/health'),
 };

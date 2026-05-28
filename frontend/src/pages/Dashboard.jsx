@@ -1,28 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import ChatInterface from '../components/ChatInterface';
 import AgendaCard from '../components/AgendaCard';
-import { AuthAPI } from '../services/api';
+import { AuthAPI, ZoomAuthAPI } from '../services/api';
 
 export default function Dashboard() {
   const [auth, setAuth] = useState({ checked: false, authenticated: false, user: null });
+  const [zoom, setZoom] = useState({ authenticated: false, user: null });
   const [error, setError] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [zoomConnecting, setZoomConnecting] = useState(false);
+  const [zoomDisconnecting, setZoomDisconnecting] = useState(false);
+
+  const fetchZoomStatus = () => {
+    ZoomAuthAPI.getStatus()
+      .then((res) => setZoom({ authenticated: res.authenticated, user: res.user }))
+      .catch(() => setZoom({ authenticated: false, user: null }));
+  };
 
   useEffect(() => {
     AuthAPI.getMe()
       .then((res) => setAuth({ checked: true, authenticated: res.authenticated, user: res.user }))
       .catch(() => setAuth({ checked: true, authenticated: false, user: null }));
 
+    fetchZoomStatus();
+
     const params = new URLSearchParams(window.location.search);
     if (params.get('auth') === 'success') {
       window.history.replaceState({}, '', window.location.pathname);
-      // Re-fetch me after OAuth redirect
       AuthAPI.getMe()
         .then((res) => setAuth({ checked: true, authenticated: res.authenticated, user: res.user }))
         .catch(() => {});
     } else if (params.get('auth') === 'error') {
       const reason = params.get('reason') || 'unknown error';
       setError(`Google sign-in failed: ${reason}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('zoom_auth') === 'success') {
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchZoomStatus();
+    } else if (params.get('zoom_auth') === 'error') {
+      const reason = params.get('reason') || 'unknown error';
+      setError(`Zoom sign-in failed: ${reason}`);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -45,6 +62,29 @@ export default function Dashboard() {
       setAuth({ checked: true, authenticated: false, user: null });
     } finally {
       setLoggingOut(false);
+    }
+  };
+
+  const handleConnectZoom = async () => {
+    setZoomConnecting(true);
+    try {
+      const res = await ZoomAuthAPI.getAuthUrl();
+      window.location.href = res.url;
+    } catch {
+      setError('Zoom OAuth not configured. Add ZOOM_CLIENT_ID and ZOOM_REDIRECT_URI to backend .env');
+      setZoomConnecting(false);
+    }
+  };
+
+  const handleDisconnectZoom = async () => {
+    setZoomDisconnecting(true);
+    try {
+      await ZoomAuthAPI.disconnect();
+      setZoom({ authenticated: false, user: null });
+    } catch {
+      setZoom({ authenticated: false, user: null });
+    } finally {
+      setZoomDisconnecting(false);
     }
   };
 
@@ -84,6 +124,36 @@ export default function Dashboard() {
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               Calendar connected
             </span>
+
+            {/* Zoom connection */}
+            {zoom.authenticated ? (
+              <div className="flex items-center gap-2 pl-3 border-l border-slate-700">
+                <ZoomIcon className="w-4 h-4 text-blue-400 shrink-0" />
+                <span className="text-blue-400 text-sm hidden sm:block">
+                  {zoom.user?.name || zoom.user?.email || 'Zoom connected'}
+                </span>
+                <button
+                  onClick={handleDisconnectZoom}
+                  disabled={zoomDisconnecting}
+                  title="Disconnect Zoom"
+                  className="text-slate-500 hover:text-slate-300 text-xs px-2 py-1 rounded-lg
+                    hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  {zoomDisconnecting ? '…' : '✕'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleConnectZoom}
+                disabled={zoomConnecting}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border
+                  border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors
+                  disabled:opacity-50 pl-3 border-l border-slate-700 ml-0"
+              >
+                <ZoomIcon className="w-3.5 h-3.5 shrink-0" />
+                {zoomConnecting ? 'Connecting…' : 'Connect Zoom'}
+              </button>
+            )}
             {auth.user && (
               <div className="flex items-center gap-2 pl-3 border-l border-slate-700">
                 {auth.user.picture ? (
@@ -240,6 +310,14 @@ function CalendarIcon({ className }) {
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
         d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  );
+}
+
+function ZoomIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4.5 8.25A3.75 3.75 0 018.25 4.5h7.5A3.75 3.75 0 0119.5 8.25v7.5a3.75 3.75 0 01-3.75 3.75h-7.5A3.75 3.75 0 014.5 15.75v-7.5zm10.5 1.125v5.25l3.75 2.25V7.125L15 9.375z" />
     </svg>
   );
 }

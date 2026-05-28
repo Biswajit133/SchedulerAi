@@ -24,6 +24,12 @@ router.get('/auth/me', controller.authMe.bind(controller));
 router.post('/auth/logout', controller.authLogout.bind(controller));
 router.get('/auth/diagnostics', controller.authDiagnostics.bind(controller));
 
+// Zoom OAuth
+router.get('/auth/zoom', controller.zoomAuth.bind(controller));
+router.get('/auth/zoom/callback', controller.zoomCallback.bind(controller));
+router.get('/auth/zoom/status', controller.zoomStatus.bind(controller));
+router.post('/auth/zoom/disconnect', controller.zoomDisconnect.bind(controller));
+
 // Health
 router.get('/health', (req, res) => {
   res.json({

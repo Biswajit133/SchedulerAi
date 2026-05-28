@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatFlow } from '../hooks/useChatFlow';
 import PriorityBadge from './PriorityBadge';
+import PlatformSelectionCard from './PlatformSelectionCard';
 
 export default function ChatInterface() {
-  const { messages, loading, sendMessage, selectSlot, confirmDirect, clearChat } = useChatFlow();
+  const { messages, loading, sendMessage, selectSlot, selectPlatform, confirmDirect, clearChat } = useChatFlow();
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -60,7 +61,7 @@ export default function ChatInterface() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} msg={msg} onSelectSlot={selectSlot} onConfirmDirect={confirmDirect} />
+          <ChatMessage key={msg.id} msg={msg} onSelectSlot={selectSlot} onSelectPlatform={selectPlatform} onConfirmDirect={confirmDirect} />
         ))}
         {loading && <TypingIndicator />}
         <div ref={bottomRef} />
@@ -102,7 +103,7 @@ export default function ChatInterface() {
 
 // ─── Message renderer ─────────────────────────────────────────────────────────
 
-function ChatMessage({ msg, onSelectSlot, onConfirmDirect }) {
+function ChatMessage({ msg, onSelectSlot, onSelectPlatform, onConfirmDirect }) {
   if (msg.role === 'user') {
     return (
       <div className="flex justify-end animate-fade-in">
@@ -143,6 +144,11 @@ function ChatMessage({ msg, onSelectSlot, onConfirmDirect }) {
         {/* Meeting list (multi-meeting pick) */}
         {msg.type === 'meeting-list' && msg.meetings?.length > 0 && (
           <MeetingListPicker meetings={msg.meetings} />
+        )}
+
+        {/* Platform selection */}
+        {msg.type === 'platform-selection' && (
+          <PlatformSelectionCard onSelect={onSelectPlatform} />
         )}
 
         {/* Scheduled confirmation */}
@@ -294,7 +300,7 @@ function ConfirmationCard({ summary }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-brand-400 text-xs hover:text-brand-300 transition-colors mt-1"
           >
-            Join Google Meet →
+            {summary.platform === 'zoom' ? 'Join Zoom Meeting →' : 'Join Google Meet →'}
           </a>
         )}
         {summary.calendarLink && !summary.demo && (

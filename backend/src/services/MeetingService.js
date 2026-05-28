@@ -9,6 +9,7 @@ const DateParser = require('../utils/DateParser');
 const NaturalLanguageParser = require('./NaturalLanguageParser');
 const PriorityService = require('./PriorityService');
 const SmartSlotService = require('./SmartSlotService');
+const PlatformFactory = require('../meetingPlatforms/PlatformFactory');
 
 const STORAGE_PATH = path.join(__dirname, '../storage/meetings.json');
 
@@ -151,8 +152,10 @@ class MeetingService {
     return { ...result, demo };
   }
 
-  async createGoogleMeeting(meeting, slot, authClient) {
-    const event = await CalendarService.createEvent(meeting, slot, authClient);
+  async createGoogleMeeting(meeting, slot, authClient, zoomAccessToken) {
+    const platform = meeting.platform || 'google_meet';
+    const provider = PlatformFactory.create(platform);
+    const event = await provider.createMeeting(meeting, slot, authClient, zoomAccessToken);
     return event;
   }
 
@@ -188,6 +191,8 @@ class MeetingService {
       duration: slot.durationMinutes,
       calendarLink: event.htmlLink || null,
       meetLink: event.meetLink || null,
+      platform: event.platform || 'google_meet',
+      platformMeetingId: event.platformMeetingId || null,
       demo: event.demo,
       invitesSent: participants.map((n) => emails[n]).filter(Boolean),
     };

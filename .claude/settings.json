@@ -6,7 +6,11 @@
       "Bash(node -e \"require\\('./src/controllers/MeetingController'\\)\")",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/controllers/MeetingController'\\);\")",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const g = require\\('./src/config/googleAuth'\\); console.log\\(Object.keys\\(g\\)\\);\")",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(mkdir -p /Users/biswajit/localhost/AI/SchedulerAi/backend/src/meetingPlatforms)"
+    ],
+    "additionalDirectories": [
+      "/Users/biswajit/localhost/AI/SchedulerAi/backend/src"
     ]
   }
 }

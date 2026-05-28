@@ -6,11 +6,12 @@ const uid = () => ++_id;
 
 // ─── Phase constants ──────────────────────────────────────────────────────────
 const PHASE = {
-  IDLE:    'IDLE',    // waiting for initial input
-  PICKING: 'PICKING', // multiple meetings extracted, user picks one
-  MISSING: 'MISSING', // collecting missing fields one-by-one
-  SLOTS:   'SLOTS',   // showing available slots
-  DONE:    'DONE',    // meeting scheduled, offer another
+  IDLE:     'IDLE',     // waiting for initial input
+  PICKING:  'PICKING',  // multiple meetings extracted, user picks one
+  MISSING:  'MISSING',  // collecting missing fields one-by-one
+  PLATFORM: 'PLATFORM', // asking user to choose meeting platform
+  SLOTS:    'SLOTS',    // showing available slots
+  DONE:     'DONE',     // meeting scheduled, offer another
 };
 
 const WELCOME = {
@@ -41,6 +42,7 @@ export function useChatFlow() {
     missingIdx: 0,
     answers: {},
     slots: [],
+    platform: null,
   });
 
   // ── Message helpers ────────────────────────────────────────────────────────
@@ -68,6 +70,16 @@ export function useChatFlow() {
       await doPick(text);
     } else if (phase === PHASE.MISSING) {
       await doMissingAnswer(text);
+    } else if (phase === PHASE.PLATFORM) {
+      // Accept typed platform choice as well as button clicks
+      const t = text.trim().toLowerCase();
+      if (t.includes('zoom')) {
+        await selectPlatformInternal('zoom');
+      } else if (t.includes('google') || t.includes('meet')) {
+        await selectPlatformInternal('google_meet');
+      } else {
+        pushBot('Please choose a platform: type "Google Meet" or "Zoom", or tap one of the buttons above.');
+      }
     } else if (phase === PHASE.SLOTS) {
       const slots = conv.current.slots;
       const t = text.trim().toLowerCase();
@@ -98,6 +110,15 @@ export function useChatFlow() {
     if (loading) return;
     pushUser(`${slot.startDisplay} – ${slot.endDisplay}`);
     await doSchedule(slot);
+  }
+
+  // ── Public: platform button click ─────────────────────────────────────────
+
+  async function selectPlatform(platform) {
+    if (loading) return;
+    const label = platform === 'zoom' ? 'Zoom' : 'Google Meet';
+    pushUser(label);
+    await selectPlatformInternal(platform);
   }
 
   // ── Phase handlers ─────────────────────────────────────────────────────────
@@ -163,17 +184,8 @@ export function useChatFlow() {
     const missing = meeting.missingFields || [];
 
     if (missing.length === 0) {
-      if (meeting.date && meeting.time) {
-        pushBot(
-          `All set for "${meeting.meeting_title}".\n\n${formatInfo(meeting)}\n\nChecking if ${meeting.time} is available...`
-        );
-        await doSmartCheck(meeting);
-      } else {
-        pushBot(
-          `All set for "${meeting.meeting_title}".\n\n${formatInfo(meeting)}\n\nChecking availability...`
-        );
-        await doLoadSlots(meeting);
-      }
+      pushBot(`All set for "${meeting.meeting_title}".\n\n${formatInfo(meeting)}`);
+      doPlatformSelection(meeting);
     } else {
       conv.current.missing = missing;
       conv.current.missingIdx = 0;
@@ -215,17 +227,52 @@ export function useChatFlow() {
         s.answers = {};
         pushBot('Almost there — just a couple more details needed.');
         askNextMissing();
-      } else if (res.meeting.date && res.meeting.time) {
-        pushBot('All details collected. Checking if that time is available...');
-        await doSmartCheck(res.meeting);
       } else {
-        pushBot('All details collected. Checking availability...');
-        await doLoadSlots(res.meeting);
+        pushBot('All details collected.');
+        doPlatformSelection(res.meeting);
       }
     } catch (e) {
       pushBot(`Error validating details: ${e.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ── Platform selection ─────────────────────────────────────────────────────
+
+  function doPlatformSelection(meeting) {
+    conv.current.active = meeting;
+    conv.current.phase = PHASE.PLATFORM;
+    conv.current.platform = null;
+    pushBot(
+      'Which meeting platform would you prefer?',
+      { type: 'platform-selection' }
+    );
+  }
+
+  async function selectPlatformInternal(platform) {
+    conv.current.platform = platform;
+    const meeting = { ...conv.current.active, platform };
+    conv.current.active = meeting;
+
+    const label = platform === 'zoom' ? 'Zoom' : 'Google Meet';
+    pushBot(`${label} selected. Checking calendar availability...`);
+
+    setLoading(true);
+    try {
+      await proceedToSlots(meeting);
+    } catch (e) {
+      pushBot(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function proceedToSlots(meeting) {
+    if (meeting.date && meeting.time) {
+      await doSmartCheck(meeting);
+    } else {
+      await doLoadSlots(meeting);
     }
   }
 
@@ -325,6 +372,7 @@ export function useChatFlow() {
       missingIdx: 0,
       answers: {},
       slots: [],
+      platform: null,
     };
   }
 
@@ -333,7 +381,7 @@ export function useChatFlow() {
     setMessages([WELCOME]);
   }
 
-  return { messages, loading, sendMessage, selectSlot, confirmDirect, clearChat };
+  return { messages, loading, sendMessage, selectSlot, selectPlatform, confirmDirect, clearChat };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
