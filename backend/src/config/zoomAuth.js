@@ -1,4 +1,6 @@
 const https = require('https');
+const { isDBConnected } = require('./database');
+const User = require('../models/User');
 
 const ZOOM_AUTH_BASE = 'zoom.us';
 const SCOPES = 'meeting:write:meeting meeting:read:meeting user:read:user';
@@ -34,6 +36,21 @@ async function exchangeCode(code, req) {
       picture: profile.pic_url || null,
       id: profile.id,
     };
+
+    // Persist to MongoDB — matched by Google session email
+    const googleEmail = req.session?.user?.email;
+    if (googleEmail && isDBConnected()) {
+      try {
+        await User.findOneAndUpdate(
+          { email: googleEmail.toLowerCase() },
+          { $set: { zoomTokens: tokens, zoomUser: req.session.zoomUser } }
+        );
+        console.log('[zoomAuth] Zoom tokens saved to DB for:', googleEmail);
+      } catch (err) {
+        console.error('[zoomAuth] DB update failed (non-fatal):', err.message);
+      }
+    }
+
     await new Promise((resolve, reject) =>
       req.session.save((err) => (err ? reject(err) : resolve()))
     );
@@ -54,6 +71,18 @@ async function refreshTokens(req) {
     }, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET);
 
     req.session.zoomTokens = tokens;
+
+    // Persist refreshed tokens to DB
+    const googleEmail = req.session?.user?.email;
+    if (googleEmail && isDBConnected()) {
+      try {
+        await User.findOneAndUpdate(
+          { email: googleEmail.toLowerCase() },
+          { $set: { zoomTokens: tokens } }
+        );
+      } catch {}
+    }
+
     await new Promise((resolve, reject) =>
       req.session.save((err) => (err ? reject(err) : resolve()))
     );
@@ -74,6 +103,26 @@ async function getAccessToken(req) {
   }
 
   return tokens.access_token;
+}
+
+// Restore Zoom tokens from DB into session (call when session is empty)
+async function loadFromDB(req) {
+  const googleEmail = req?.session?.user?.email;
+  if (!googleEmail || !isDBConnected()) return false;
+  try {
+    const dbUser = await User.findOne({ email: googleEmail.toLowerCase() }).lean();
+    if (dbUser?.zoomTokens?.access_token) {
+      req.session.zoomTokens = dbUser.zoomTokens;
+      req.session.zoomUser   = dbUser.zoomUser;
+      await new Promise((resolve, reject) =>
+        req.session.save((err) => (err ? reject(err) : resolve()))
+      );
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 function isAuthenticated(req) {
@@ -168,6 +217,7 @@ module.exports = {
   getAuthUrl,
   exchangeCode,
   getAccessToken,
+  loadFromDB,
   isAuthenticated,
   getSessionUser,
   disconnect,

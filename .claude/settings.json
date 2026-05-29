@@ -7,7 +7,12 @@
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/controllers/MeetingController'\\);\")",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const g = require\\('./src/config/googleAuth'\\); console.log\\(Object.keys\\(g\\)\\);\")",
       "Bash(git pull *)",
-      "Bash(mkdir -p /Users/biswajit/localhost/AI/SchedulerAi/backend/src/meetingPlatforms)"
+      "Bash(mkdir -p /Users/biswajit/localhost/AI/SchedulerAi/backend/src/meetingPlatforms)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/config/database'\\); require\\('./src/models/User'\\); require\\('./src/config/googleAuth'\\); require\\('./src/config/zoomAuth'\\); require\\('./src/controllers/MeetingController'\\); console.log\\('All modules load OK'\\);\")",
+      "Bash(node -e \"require\\('./src/services/MeetingService'\\); require\\('./src/config/googleAuth'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/config/googleAuth'\\); require\\('./src/config/zoomAuth'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/config/googleAuth'\\); require\\('./src/services/AgendaService'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./src/controllers/MeetingController'\\); console.log\\('OK'\\)\")"
     ],
     "additionalDirectories": [
       "/Users/biswajit/localhost/AI/SchedulerAi/backend/src"

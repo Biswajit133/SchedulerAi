@@ -1,6 +1,4 @@
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs');
-const path = require('path');
 const ProviderFactory = require('../providers/ProviderFactory');
 const PromptBuilder = require('./PromptBuilder');
 const ConflictService = require('./ConflictService');
@@ -10,8 +8,6 @@ const NaturalLanguageParser = require('./NaturalLanguageParser');
 const PriorityService = require('./PriorityService');
 const SmartSlotService = require('./SmartSlotService');
 const PlatformFactory = require('../meetingPlatforms/PlatformFactory');
-
-const STORAGE_PATH = path.join(__dirname, '../storage/meetings.json');
 
 class MeetingService {
   constructor() {
@@ -209,27 +205,12 @@ class MeetingService {
     };
   }
 
-  // ─── Storage ───────────────────────────────────────────────────────────────
-
-  saveMeeting(meetingData) {
-    const all = this._loadAll();
-    const record = { ...meetingData, savedAt: new Date().toISOString() };
-    all.push(record);
-    fs.writeFileSync(STORAGE_PATH, JSON.stringify(all, null, 2));
-    return record;
+  saveMeeting() {
+    // Meetings are stored in Google Calendar — no local file storage needed
   }
 
   getAllMeetings() {
-    return this._loadAll();
-  }
-
-  _loadAll() {
-    try {
-      if (!fs.existsSync(STORAGE_PATH)) return [];
-      return JSON.parse(fs.readFileSync(STORAGE_PATH, 'utf8'));
-    } catch {
-      return [];
-    }
+    return [];
   }
 }
 

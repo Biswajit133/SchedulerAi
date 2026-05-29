@@ -1,10 +1,9 @@
-const fs = require('fs');
-const path = require('path');
 const DateParser = require('../utils/DateParser');
 const SlotFinder = require('../utils/SlotFinder');
 const CalendarService = require('./CalendarService');
 
-const STORAGE_PATH = path.join(__dirname, '../storage/meetings.json');
+const WORK_START = 7 * 60;   // 7:00 AM
+const WORK_END   = 22 * 60;  // 10:00 PM
 
 class AgendaService {
   async getTodayAgenda(authClient) {
@@ -14,17 +13,14 @@ class AgendaService {
   async getAgenda(date, authClient) {
     const target = date || DateParser.toISODate(new Date());
     const { busySlots, demo } = await this._getBusySlots(target, authClient);
-    const storedMeetings = this._loadStoredMeetings(target);
-    const freeSlots = SlotFinder.findAvailableSlots(busySlots, target, 60);
-    const upcomingTasks = this._getUpcomingTasks(target);
-    const meetings = this._mergeAndSort(busySlots, storedMeetings, target);
+    const freeSlots = this._toFreeRanges(busySlots, target);
 
     return {
       date: target,
       dateDisplay: DateParser.formatDateDisplay(target),
-      meetings,
-      freeSlots: freeSlots.slice(0, 5),
-      upcomingTasks,
+      meetings: this._toMeetingList(busySlots),
+      freeSlots,
+      upcomingTasks: [],
       demo,
     };
   }
@@ -38,80 +34,63 @@ class AgendaService {
     }
   }
 
-  _loadStoredMeetings(date) {
-    try {
-      if (!fs.existsSync(STORAGE_PATH)) return [];
-      const all = JSON.parse(fs.readFileSync(STORAGE_PATH, 'utf8'));
-      return all
-        .filter((r) => r.meeting?.date === date || r.slot?.date === date)
-        .map((r) => ({
-          title: r.meeting?.meeting_title || 'Meeting',
-          startTime: r.slot?.startTime || r.meeting?.time || null,
-          endTime: r.slot?.endTime || null,
-          owner: r.meeting?.owner || null,
-          task: r.meeting?.task || null,
-          source: 'stored',
-        }));
-    } catch {
-      return [];
+  _toFreeRanges(busySlots, date) {
+    const busy = (busySlots || [])
+      .filter((s) => s.date === date || !s.date)
+      .map((s) => ({
+        start: DateParser.timeToMinutes(s.startTime),
+        end:   DateParser.timeToMinutes(s.endTime),
+      }))
+      .sort((a, b) => a.start - b.start);
+
+    const free = [];
+    let cursor = WORK_START;
+
+    for (const { start, end } of busy) {
+      if (start > cursor) {
+        const s = DateParser.minutesToTime(cursor);
+        const e = DateParser.minutesToTime(start);
+        free.push({
+          startTime: s,
+          endTime: e,
+          startDisplay: DateParser.formatTimeDisplay(s),
+          endDisplay: DateParser.formatTimeDisplay(e),
+        });
+      }
+      cursor = Math.max(cursor, end);
     }
+
+    if (cursor < WORK_END) {
+      const s = DateParser.minutesToTime(cursor);
+      const e = DateParser.minutesToTime(WORK_END);
+      free.push({
+        startTime: s,
+        endTime: e,
+        startDisplay: DateParser.formatTimeDisplay(s),
+        endDisplay: DateParser.formatTimeDisplay(e),
+      });
+    }
+
+    return free;
   }
 
-  _mergeAndSort(busySlots, storedMeetings, date) {
-    const fromCalendar = (busySlots || []).map((s) => ({
-      title: s.title || 'Busy',
-      startTime: s.startTime,
-      endTime: s.endTime,
-      startDisplay: DateParser.formatTimeDisplay(s.startTime),
-      endDisplay: DateParser.formatTimeDisplay(s.endTime),
-      source: 'calendar',
-    }));
-
-    const fromStorage = storedMeetings.map((s) => ({
-      ...s,
-      startDisplay: s.startTime ? DateParser.formatTimeDisplay(s.startTime) : 'TBD',
-      endDisplay: s.endTime ? DateParser.formatTimeDisplay(s.endTime) : 'TBD',
-    }));
-
-    // Deduplicate: prefer calendar entries; skip stored entries that overlap
-    const calTimes = new Set(fromCalendar.map((m) => m.startTime));
-    const unique = fromStorage.filter((m) => !calTimes.has(m.startTime));
-
-    return [...fromCalendar, ...unique]
-      .filter((m) => m.startTime)
+  _toMeetingList(busySlots) {
+    return (busySlots || [])
+      .filter((s) => s.startTime)
+      .map((s) => ({
+        title: s.title || 'Busy',
+        startTime: s.startTime,
+        endTime: s.endTime,
+        startDisplay: DateParser.formatTimeDisplay(s.startTime),
+        endDisplay: DateParser.formatTimeDisplay(s.endTime),
+        joinUrl: s.joinUrl || null,
+        platform: s.platform || null,
+        htmlLink: s.htmlLink || null,
+        source: 'calendar',
+      }))
       .sort((a, b) =>
         DateParser.timeToMinutes(a.startTime) - DateParser.timeToMinutes(b.startTime)
       );
-  }
-
-  _getUpcomingTasks(today) {
-    try {
-      if (!fs.existsSync(STORAGE_PATH)) return [];
-      const all = JSON.parse(fs.readFileSync(STORAGE_PATH, 'utf8'));
-      return all
-        .filter((r) => {
-          const d = r.meeting?.date || r.slot?.date;
-          return d && d > today;
-        })
-        .sort((a, b) => {
-          const da = a.meeting?.date || a.slot?.date || '';
-          const db = b.meeting?.date || b.slot?.date || '';
-          return da.localeCompare(db);
-        })
-        .slice(0, 5)
-        .map((r) => ({
-          title: r.meeting?.meeting_title || 'Meeting',
-          date: r.meeting?.date || r.slot?.date,
-          dateDisplay: DateParser.formatDateDisplay(r.meeting?.date || r.slot?.date),
-          startTime: r.slot?.startTime || r.meeting?.time || null,
-          startDisplay: r.slot?.startTime
-            ? DateParser.formatTimeDisplay(r.slot.startTime)
-            : 'TBD',
-          owner: r.meeting?.owner || null,
-        }));
-    } catch {
-      return [];
-    }
   }
 }
 

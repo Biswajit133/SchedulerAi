@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
-const fs = require('fs');
-const path = require('path');
+const { isDBConnected } = require('./database');
+const User = require('../models/User');
 
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar',
@@ -8,9 +8,6 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
-
-// Legacy single-user token file (kept as fallback for dev convenience)
-const TOKEN_PATH = path.join(__dirname, '../storage/google_tokens.json');
 
 function createOAuth2Client() {
   return new google.auth.OAuth2(
@@ -20,12 +17,25 @@ function createOAuth2Client() {
   );
 }
 
-function getAuthUrl() {
+async function getAuthUrl(email) {
   const client = createOAuth2Client();
+  let prompt = 'consent';
+
+  // Skip consent screen if user already has a stored refresh_token
+  if (email && isDBConnected()) {
+    try {
+      const existing = await User.findOne({ email: email.toLowerCase() }).lean();
+      if (existing?.googleTokens?.refresh_token) prompt = 'select_account';
+    } catch (err) {
+      console.warn('[googleAuth] DB lookup for consent decision failed:', err.message);
+    }
+  }
+
   return client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    prompt: 'consent',
+    prompt,
+    ...(email ? { login_hint: email } : {}),
   });
 }
 
@@ -34,9 +44,12 @@ async function exchangeCode(code, req) {
   const { tokens } = await client.getToken(code);
 
   if (req) {
-    // Per-user: store in session
+    // Regenerate session to prevent any previous user's data from leaking in
+    await new Promise((resolve, reject) =>
+      req.session.regenerate((err) => (err ? reject(err) : resolve()))
+    );
+
     req.session.googleTokens = tokens;
-    // Fetch user profile
     client.setCredentials(tokens);
     const oauth2 = google.oauth2({ version: 'v2', auth: client });
     const { data } = await oauth2.userinfo.get();
@@ -45,35 +58,69 @@ async function exchangeCode(code, req) {
       name: data.name,
       picture: data.picture,
     };
+
+    // Persist to MongoDB
+    if (isDBConnected()) {
+      try {
+        let tokensToSave = tokens;
+        // Google only sends refresh_token on first consent — preserve existing one on re-login
+        if (!tokens.refresh_token) {
+          const existing = await User.findOne({ email: data.email.toLowerCase() }).lean();
+          if (existing?.googleTokens?.refresh_token) {
+            tokensToSave = { ...tokens, refresh_token: existing.googleTokens.refresh_token };
+          }
+        }
+        await User.findOneAndUpdate(
+          { email: data.email.toLowerCase() },
+          { $set: { name: data.name, picture: data.picture, googleTokens: tokensToSave } },
+          { upsert: true }
+        );
+        console.log('[googleAuth] User upserted in DB:', data.email);
+      } catch (err) {
+        console.error('[googleAuth] DB upsert failed (non-fatal):', err.message);
+      }
+    }
+
     await new Promise((resolve, reject) =>
       req.session.save((err) => (err ? reject(err) : resolve()))
     );
-  } else {
-    // Fallback: write to file (single-user dev mode)
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
   }
 
   return tokens;
 }
 
 async function getAuthenticatedClient(req) {
-  // 1. Try session tokens (per-user)
+  // 1. Try session tokens (per-user, fastest path)
   const sessionTokens = req?.session?.googleTokens;
   if (sessionTokens) {
     return _buildClient(sessionTokens, async (fresh) => {
       if (req) req.session.googleTokens = fresh;
+      if (req?.session?.user?.email && isDBConnected()) {
+        try {
+          await User.findOneAndUpdate(
+            { email: req.session.user.email.toLowerCase() },
+            { $set: { googleTokens: fresh } }
+          );
+        } catch {}
+      }
     });
   }
 
-  // 2. Fallback: file-based token (single-user dev mode)
-  if (fs.existsSync(TOKEN_PATH)) {
+  // 2. Try MongoDB (session may have expired or server restarted)
+  if (req?.session?.user?.email && isDBConnected()) {
     try {
-      const fileTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
-      return _buildClient(fileTokens, (fresh) => {
-        fs.writeFileSync(TOKEN_PATH, JSON.stringify(fresh, null, 2));
-      });
-    } catch {
-      return null;
+      const dbUser = await User.findOne({ email: req.session.user.email.toLowerCase() }).lean();
+      if (dbUser?.googleTokens?.access_token) {
+        return _buildClient(dbUser.googleTokens, async (fresh) => {
+          if (req) req.session.googleTokens = fresh;
+          await User.findOneAndUpdate(
+            { email: dbUser.email },
+            { $set: { googleTokens: fresh } }
+          );
+        });
+      }
+    } catch (err) {
+      console.warn('[googleAuth] DB token lookup failed:', err.message);
     }
   }
 
@@ -99,15 +146,7 @@ async function _buildClient(tokens, onRefresh) {
 }
 
 function isAuthenticated(req) {
-  if (req?.session?.googleTokens?.access_token) return true;
-  // Fallback: file
-  try {
-    if (!fs.existsSync(TOKEN_PATH)) return false;
-    const t = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
-    return !!(t && t.access_token);
-  } catch {
-    return false;
-  }
+  return !!(req?.session?.googleTokens?.access_token);
 }
 
 function getSessionUser(req) {

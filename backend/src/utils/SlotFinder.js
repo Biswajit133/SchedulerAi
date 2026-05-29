@@ -78,7 +78,37 @@ class SlotFinder {
         if (localDate !== date) return null;
         const startTime = `${String(startDt.getHours()).padStart(2, '0')}:${String(startDt.getMinutes()).padStart(2, '0')}`;
         const endTime   = `${String(endDt.getHours()).padStart(2, '0')}:${String(endDt.getMinutes()).padStart(2, '0')}`;
-        return { date, startTime, endTime, title: event.summary || 'Busy' };
+        // Detect platform and join URL
+        let joinUrl = null;
+        let platform = null;
+
+        if (event.hangoutLink) {
+          joinUrl = event.hangoutLink;
+          platform = 'google_meet';
+        } else if (event.conferenceData?.entryPoints) {
+          const videoEp = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
+          if (videoEp?.uri) {
+            joinUrl = videoEp.uri;
+            platform = videoEp.uri.includes('zoom.us') ? 'zoom' : 'google_meet';
+          }
+        }
+
+        if (!joinUrl && event.description) {
+          const zoomMatch = event.description.match(/https:\/\/(?:[a-z0-9]+\.)*zoom\.us\/j\/[^\s<"]+/);
+          if (zoomMatch) { joinUrl = zoomMatch[0]; platform = 'zoom'; }
+          if (!joinUrl) {
+            const teamsMatch = event.description.match(/https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s<"]+/);
+            if (teamsMatch) { joinUrl = teamsMatch[0]; platform = 'teams'; }
+          }
+        }
+
+        return {
+          date, startTime, endTime,
+          title: event.summary || 'Busy',
+          joinUrl,
+          platform,
+          htmlLink: event.htmlLink || null,
+        };
       })
       .filter(Boolean);
   }

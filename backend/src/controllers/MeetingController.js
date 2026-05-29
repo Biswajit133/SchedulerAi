@@ -172,9 +172,10 @@ class MeetingController {
   // ─── Auth ──────────────────────────────────────────────────────────────────
 
   // GET /api/auth/google
-  googleAuth(req, res) {
+  async googleAuth(req, res) {
     try {
-      const url = getAuthUrl();
+      const email = req.session?.user?.email || null;
+      const url = await getAuthUrl(email);
       res.json({ url });
     } catch (err) {
       res.status(500).json({ error: 'Google OAuth not configured. Check GOOGLE_CLIENT_ID and related env vars.' });
@@ -200,7 +201,20 @@ class MeetingController {
   }
 
   // GET /api/auth/status
-  authStatus(req, res) {
+  async authStatus(req, res) {
+    // Restore tokens from DB if session is empty but email is known
+    if (!req.session?.googleTokens && req.session?.user?.email) {
+      const { isDBConnected } = require('../config/database');
+      const User = require('../models/User');
+      if (isDBConnected()) {
+        try {
+          const dbUser = await User.findOne({ email: req.session.user.email.toLowerCase() }).lean();
+          if (dbUser?.googleTokens) req.session.googleTokens = dbUser.googleTokens;
+          if (dbUser?.zoomTokens)   req.session.zoomTokens   = dbUser.zoomTokens;
+          if (dbUser?.zoomUser)     req.session.zoomUser      = dbUser.zoomUser;
+        } catch {}
+      }
+    }
     const authenticated = isAuthenticated(req);
     const user = getSessionUser(req);
     res.json({ authenticated, user });
@@ -262,10 +276,45 @@ class MeetingController {
   }
 
   // GET /api/auth/zoom/status
-  zoomStatus(req, res) {
-    const authenticated = zoomAuth.isAuthenticated(req);
-    const user = zoomAuth.getSessionUser(req);
-    res.json({ authenticated, user });
+  async zoomStatus(req, res) {
+    const googleEmail = req.session?.user?.email;
+
+    // Check DB to get the true Zoom status for the currently logged-in Google user
+    if (googleEmail) {
+      const { isDBConnected } = require('../config/database');
+      const User = require('../models/User');
+      if (isDBConnected()) {
+        try {
+          const dbUser = await User.findOne({ email: googleEmail.toLowerCase() }).lean();
+          const authenticated = !!(dbUser?.zoomTokens?.access_token);
+
+          // Sync session with DB so subsequent token operations work correctly
+          if (authenticated && !req.session.zoomTokens) {
+            req.session.zoomTokens = dbUser.zoomTokens;
+            req.session.zoomUser   = dbUser.zoomUser;
+            await new Promise((resolve, reject) =>
+              req.session.save((err) => (err ? reject(err) : resolve()))
+            );
+          } else if (!authenticated && req.session.zoomTokens) {
+            delete req.session.zoomTokens;
+            delete req.session.zoomUser;
+            await new Promise((resolve, reject) =>
+              req.session.save((err) => (err ? reject(err) : resolve()))
+            );
+          }
+
+          return res.json({ authenticated, user: dbUser?.zoomUser || null });
+        } catch (err) {
+          console.warn('[zoomStatus] DB check failed, falling back to session:', err.message);
+        }
+      }
+    }
+
+    // Fallback: session only
+    res.json({
+      authenticated: zoomAuth.isAuthenticated(req),
+      user: zoomAuth.getSessionUser(req),
+    });
   }
 
   // POST /api/auth/zoom/disconnect
@@ -279,7 +328,7 @@ class MeetingController {
   }
 
   // GET /api/auth/diagnostics
-  authDiagnostics(req, res) {
+  async authDiagnostics(req, res) {
     const clientId = process.env.GOOGLE_CLIENT_ID || '';
     const secret = process.env.GOOGLE_CLIENT_SECRET || '';
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || '';
@@ -292,7 +341,7 @@ class MeetingController {
     if (!redirectUri) issues.push('GOOGLE_REDIRECT_URI is missing from .env');
 
     let authUrl = null;
-    try { authUrl = getAuthUrl(); } catch {}
+    try { authUrl = await getAuthUrl(); } catch {}
 
     res.json({
       configured: issues.length === 0,

@@ -4,6 +4,7 @@ const cors = require('cors');
 const session = require('express-session');
 const routes = require('./src/routes/meetingRoutes');
 const { errorHandler } = require('./src/middleware/validation');
+const { connectDB } = require('./src/config/database');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,12 +42,14 @@ app.use('/api', routes);
 app.use(errorHandler);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  const provider = process.env.AI_PROVIDER || 'groq';
-  console.log(`\n🚀 SchedulerAI backend running on http://localhost:${PORT}`);
-  console.log(`   AI Provider : ${provider.toUpperCase()}`);
-  console.log(`   Environment : ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    const provider = process.env.AI_PROVIDER || 'groq';
+    console.log(`\n🚀 SchedulerAI backend running on http://localhost:${PORT}`);
+    console.log(`   AI Provider : ${provider.toUpperCase()}`);
+    console.log(`   Environment : ${process.env.NODE_ENV || 'development'}`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
+  });
 });
 
 module.exports = app;

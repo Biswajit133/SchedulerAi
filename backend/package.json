@@ -17,6 +17,7 @@
     "express-session": "^1.19.0",
     "googleapis": "^144.0.0",
     "groq-sdk": "^0.7.0",
+    "mongoose": "^9.6.3",
     "openai": "^4.67.0",
     "uuid": "^10.0.0"
   },
