@@ -1,6 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { ContactAPI } from '../services/api';
 
-export default function ScheduleConfirmation({ summary, onScheduleAnother }) {
+export default function ScheduleConfirmation({ summary, onScheduleAnother, onShowToast }) {
+  const [savedContacts, setSavedContacts] = useState(null); // null = loading/unavailable
+  const [checked, setChecked] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    ContactAPI.getContacts()
+      .then((res) => {
+        const existing = new Set((res.contacts || []).map((c) => c.email.toLowerCase()));
+        setSavedContacts(existing);
+        const initial = {};
+        (summary?.participants || []).forEach((p) => {
+          if (p.email && !existing.has(p.email.toLowerCase())) initial[p.email] = true;
+        });
+        setChecked(initial);
+      })
+      .catch(() => setSavedContacts(null));
+  }, []);
+
+  const newParticipants = (summary?.participants || []).filter(
+    (p) => p.email && savedContacts && !savedContacts.has(p.email.toLowerCase())
+  );
+
+  const handleSaveContacts = async () => {
+    const toSave = newParticipants
+      .filter((p) => checked[p.email])
+      .map((p) => ({ name: p.name, email: p.email }));
+    if (!toSave.length) return;
+    setSaving(true);
+    try {
+      await ContactAPI.saveContacts(toSave);
+      onShowToast?.(`${toSave.length} contact${toSave.length > 1 ? 's' : ''} saved!`, 'success');
+      setSavedContacts((prev) => {
+        const next = new Set(prev);
+        toSave.forEach((c) => next.add(c.email.toLowerCase()));
+        return next;
+      });
+      setChecked({});
+    } catch (e) {
+      onShowToast?.(e.message || 'Failed to save contacts', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!summary) return null;
 
   return (
@@ -67,6 +112,37 @@ export default function ScheduleConfirmation({ summary, onScheduleAnother }) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Save to contacts */}
+        {newParticipants.length > 0 && savedContacts !== null && (
+          <div className="border-t border-slate-700/50 pt-4 space-y-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Save to Contacts</p>
+            <div className="space-y-2">
+              {newParticipants.map((p) => (
+                <label
+                  key={p.email}
+                  className="flex items-center gap-3 bg-slate-800/50 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-800 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!checked[p.email]}
+                    onChange={(e) => setChecked((prev) => ({ ...prev, [p.email]: e.target.checked }))}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 accent-brand-500"
+                  />
+                  <span className="flex-1 text-sm text-slate-200">{p.name}</span>
+                  <span className="text-xs text-slate-400">{p.email}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={handleSaveContacts}
+              disabled={saving || !Object.values(checked).some(Boolean)}
+              className="btn-secondary w-full text-sm disabled:opacity-40"
+            >
+              {saving ? 'Saving…' : 'Save Selected Contacts'}
+            </button>
           </div>
         )}
 

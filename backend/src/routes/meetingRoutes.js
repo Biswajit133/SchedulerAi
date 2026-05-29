@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const controller = require('../controllers/MeetingController');
+const contactController = require('../controllers/ContactController');
 const { validateExtract, validateSchedule } = require('../middleware/validation');
 
 const router = Router();
@@ -29,6 +30,11 @@ router.get('/auth/zoom', controller.zoomAuth.bind(controller));
 router.get('/auth/zoom/callback', controller.zoomCallback.bind(controller));
 router.get('/auth/zoom/status', controller.zoomStatus.bind(controller));
 router.post('/auth/zoom/disconnect', controller.zoomDisconnect.bind(controller));
+
+// Contacts
+router.get('/contacts',           contactController.getContacts.bind(contactController));
+router.post('/contacts',          contactController.saveContacts.bind(contactController));
+router.delete('/contacts/:email', contactController.deleteContact.bind(contactController));
 
 // Health
 router.get('/health', (req, res) => {

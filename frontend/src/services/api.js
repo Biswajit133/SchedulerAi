@@ -48,6 +48,12 @@ export const ZoomAuthAPI = {
   disconnect: () => api.post('/auth/zoom/disconnect'),
 };
 
+export const ContactAPI = {
+  getContacts:   () => api.get('/contacts'),
+  saveContacts:  (contacts) => api.post('/contacts', { contacts }),
+  deleteContact: (email) => api.delete(`/contacts/${encodeURIComponent(email)}`),
+};
+
 export const HealthAPI = {
   check: () => api.get('/health'),
 };

@@ -10,6 +10,43 @@ const {
   logout,
 } = require('../config/googleAuth');
 const zoomAuth = require('../config/zoomAuth');
+const User = require('../models/User');
+const { isDBConnected } = require('../config/database');
+
+// Fills participant_emails from the user's saved contacts.
+// Matches by: exact name, first-name only, or contact name containing the participant name.
+async function applyContactEmails(meeting, req) {
+  const userEmail = req.session?.user?.email;
+  if (!userEmail || !isDBConnected()) return meeting;
+  if (!meeting.participants?.length) return meeting;
+
+  const dbUser = await User.findOne({ email: userEmail.toLowerCase() }).select('contacts').lean();
+  const contacts = dbUser?.contacts ?? [];
+  if (!contacts.length) return meeting;
+
+  function findEmail(participantName) {
+    const q = participantName.toLowerCase().trim();
+    // 1. Exact match
+    const exact = contacts.find((c) => c.name.toLowerCase() === q);
+    if (exact) return exact.email;
+    // 2. Contact's first name matches participant name (e.g. "Subrata" matches "Subrata Singha")
+    const firstNameMatch = contacts.find((c) => c.name.toLowerCase().split(/\s+/)[0] === q);
+    if (firstNameMatch) return firstNameMatch.email;
+    // 3. Participant name is contained in contact name (e.g. "Subrata" in "Dr. Subrata Roy")
+    const containsMatch = contacts.find((c) => c.name.toLowerCase().includes(q));
+    if (containsMatch) return containsMatch.email;
+    return null;
+  }
+
+  const resolved = { ...(meeting.participant_emails || {}) };
+  for (const name of meeting.participants) {
+    if (!resolved[name]) {
+      const found = findEmail(name);
+      if (found) resolved[name] = found;
+    }
+  }
+  return { ...meeting, participant_emails: resolved };
+}
 
 class MeetingController {
   // ─── Helper: resolve auth client for this request ─────────────────────────
@@ -27,10 +64,12 @@ class MeetingController {
       }
 
       const meetings = await MeetingService.extractMeetingInfo(notes);
-      const result = meetings.map((m) => ({
-        ...m,
-        missingFields: MeetingService.findMissingFields(m),
-      }));
+      const result = await Promise.all(
+        meetings.map(async (m) => {
+          const resolved = await applyContactEmails(m, req);
+          return { ...resolved, missingFields: MeetingService.findMissingFields(resolved) };
+        })
+      );
 
       res.json({ success: true, meetings: result });
     } catch (err) {
@@ -45,10 +84,11 @@ class MeetingController {
       const { meeting, answers } = req.body;
       if (!meeting) return res.status(400).json({ error: 'meeting is required' });
 
-      const updated = answers
+      let updated = answers
         ? MeetingService.applyFieldAnswers(meeting, answers)
         : meeting;
 
+      updated = await applyContactEmails(updated, req);
       const missingFields = MeetingService.findMissingFields(updated);
 
       res.json({ success: true, meeting: updated, missingFields });
@@ -188,15 +228,15 @@ class MeetingController {
     try {
       const { code, error } = req.query;
       if (error) {
-        return res.redirect(`${frontendUrl}?auth=error&reason=${encodeURIComponent(error)}`);
+        return res.redirect(`${frontendUrl}/app?auth=error&reason=${encodeURIComponent(error)}`);
       }
       if (!code) return res.status(400).send('Missing code');
       await exchangeCode(code, req);
-      res.redirect(`${frontendUrl}?auth=success`);
+      res.redirect(`${frontendUrl}/app?auth=success`);
     } catch (err) {
       console.error('[googleCallback]', err);
       const reason = err.message || 'unknown';
-      res.redirect(`${frontendUrl}?auth=error&reason=${encodeURIComponent(reason)}`);
+      res.redirect(`${frontendUrl}/app?auth=error&reason=${encodeURIComponent(reason)}`);
     }
   }
 

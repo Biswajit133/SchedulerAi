@@ -207,7 +207,7 @@ export default function Dashboard() {
           <StatsBar />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" style={{ height: 'calc(100vh - 13rem)' }}>
             <div className="lg:col-span-2 h-full min-h-0">
-              <ChatInterface />
+              <ChatInterface onShowToast={showToast} />
             </div>
             <div className="lg:col-span-1 overflow-y-auto space-y-4 pb-4">
               <AgendaCard />

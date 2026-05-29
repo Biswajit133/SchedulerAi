@@ -25,6 +25,13 @@ const userSchema = new mongoose.Schema(
       id:      String,
       picture: String,
     },
+    contacts: [
+      {
+        name:    { type: String, required: true, trim: true },
+        email:   { type: String, required: true, lowercase: true, trim: true },
+        savedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

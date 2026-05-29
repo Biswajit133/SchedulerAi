@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useChatFlow } from '../hooks/useChatFlow';
 import PriorityBadge from './PriorityBadge';
 import PlatformSelectionCard from './PlatformSelectionCard';
+import { ContactAPI } from '../services/api';
 
-export default function ChatInterface() {
+export default function ChatInterface({ onShowToast }) {
   const { messages, loading, sendMessage, selectSlot, selectPlatform, confirmDirect, clearChat } = useChatFlow();
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
@@ -61,7 +62,7 @@ export default function ChatInterface() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} msg={msg} onSelectSlot={selectSlot} onSelectPlatform={selectPlatform} onConfirmDirect={confirmDirect} />
+          <ChatMessage key={msg.id} msg={msg} onSelectSlot={selectSlot} onSelectPlatform={selectPlatform} onConfirmDirect={confirmDirect} onShowToast={onShowToast} />
         ))}
         {loading && <TypingIndicator />}
         <div ref={bottomRef} />
@@ -103,7 +104,7 @@ export default function ChatInterface() {
 
 // ─── Message renderer ─────────────────────────────────────────────────────────
 
-function ChatMessage({ msg, onSelectSlot, onSelectPlatform, onConfirmDirect }) {
+function ChatMessage({ msg, onSelectSlot, onSelectPlatform, onConfirmDirect, onShowToast }) {
   if (msg.role === 'user') {
     return (
       <div className="flex justify-end animate-fade-in">
@@ -153,7 +154,7 @@ function ChatMessage({ msg, onSelectSlot, onSelectPlatform, onConfirmDirect }) {
 
         {/* Scheduled confirmation */}
         {msg.type === 'confirmation' && msg.summary && (
-          <ConfirmationCard summary={msg.summary} />
+          <ConfirmationCard summary={msg.summary} onShowToast={onShowToast} />
         )}
       </div>
     </div>
@@ -264,7 +265,51 @@ function MeetingListPicker({ meetings }) {
 
 // ─── Confirmation card ────────────────────────────────────────────────────────
 
-function ConfirmationCard({ summary }) {
+function ConfirmationCard({ summary, onShowToast }) {
+  const [savedContacts, setSavedContacts] = useState(null);
+  const [checked, setChecked] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    ContactAPI.getContacts()
+      .then((res) => {
+        const existing = new Set((res.contacts || []).map((c) => c.email.toLowerCase()));
+        setSavedContacts(existing);
+        const initial = {};
+        (summary?.participants || []).forEach((p) => {
+          if (p.email && !existing.has(p.email.toLowerCase())) initial[p.email] = true;
+        });
+        setChecked(initial);
+      })
+      .catch(() => setSavedContacts(null));
+  }, []);
+
+  const newParticipants = (summary?.participants || []).filter(
+    (p) => p.email && savedContacts && !savedContacts.has(p.email.toLowerCase())
+  );
+
+  const handleSaveContacts = async () => {
+    const toSave = newParticipants
+      .filter((p) => checked[p.email])
+      .map((p) => ({ name: p.name, email: p.email }));
+    if (!toSave.length) return;
+    setSaving(true);
+    try {
+      await ContactAPI.saveContacts(toSave);
+      onShowToast?.(`${toSave.length} contact${toSave.length > 1 ? 's' : ''} saved!`, 'success');
+      setSavedContacts((prev) => {
+        const next = new Set(prev);
+        toSave.forEach((c) => next.add(c.email.toLowerCase()));
+        return next;
+      });
+      setChecked({});
+    } catch (e) {
+      onShowToast?.(e.message || 'Failed to save contacts', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 space-y-3">
       {/* Title row */}
@@ -320,6 +365,38 @@ function ConfirmationCard({ summary }) {
         <p className="text-slate-500 text-xs pl-8">
           Invites sent to {summary.invitesSent.length} participant(s)
         </p>
+      )}
+
+      {/* Save to contacts */}
+      {newParticipants.length > 0 && savedContacts !== null && (
+        <div className="border-t border-emerald-500/20 pt-3 space-y-2 pl-8">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Save to Contacts</p>
+          <div className="space-y-1.5">
+            {newParticipants.map((p) => (
+              <label
+                key={p.email}
+                className="flex items-center gap-2.5 bg-slate-800/50 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-slate-800 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!checked[p.email]}
+                  onChange={(e) => setChecked((prev) => ({ ...prev, [p.email]: e.target.checked }))}
+                  className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-700 accent-brand-500"
+                />
+                <span className="flex-1 text-xs text-slate-200">{p.name}</span>
+                <span className="text-xs text-slate-500 truncate max-w-[140px]">{p.email}</span>
+              </label>
+            ))}
+          </div>
+          <button
+            onClick={handleSaveContacts}
+            disabled={saving || !Object.values(checked).some(Boolean)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300
+              hover:bg-slate-700 hover:border-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving…' : 'Save Selected Contacts'}
+          </button>
+        </div>
       )}
     </div>
   );

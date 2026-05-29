@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ContactAPI } from '../services/api';
 
 export default function MissingFieldForm({ meeting, missingFields, onComplete, onBack }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -6,13 +7,55 @@ export default function MissingFieldForm({ meeting, missingFields, onComplete, o
   const [inputValue, setInputValue] = useState('');
   const [error, setError] = useState('');
 
+  const [contacts, setContacts] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
+  const dropdownRef = useRef(null);
+
   const current = missingFields[currentIndex];
   const progress = ((currentIndex) / missingFields.length) * 100;
 
   useEffect(() => {
     setInputValue('');
     setError('');
+    setShowDropdown(false);
   }, [currentIndex]);
+
+  // Load contacts once
+  useEffect(() => {
+    if (!contactsLoaded) {
+      ContactAPI.getContacts()
+        .then((res) => setContacts(res.contacts || []))
+        .catch(() => {})
+        .finally(() => setContactsLoaded(true));
+    }
+  }, [contactsLoaded]);
+
+  // Filter suggestions on email fields
+  useEffect(() => {
+    if (current?.type !== 'email' || !inputValue.trim() || contacts.length === 0) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+    const q = inputValue.toLowerCase();
+    const filtered = contacts
+      .filter((c) => c.email.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
+      .slice(0, 6);
+    setSuggestions(filtered);
+    setShowDropdown(filtered.length > 0);
+  }, [inputValue, contacts, current?.type]);
+
+  // Click-outside dismissal
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setShowDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const validate = (value) => {
     if (!value.trim()) return 'This field is required.';
@@ -80,15 +123,37 @@ export default function MissingFieldForm({ meeting, missingFields, onComplete, o
           <label className="text-base font-semibold text-white">{current.question}</label>
         </div>
 
-        <input
-          type={current.type === 'email' ? 'email' : current.type === 'date' ? 'date' : 'text'}
-          className={`input ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
-          placeholder={getPlaceholder(current.type)}
-          value={inputValue}
-          onChange={(e) => { setInputValue(e.target.value); setError(''); }}
-          onKeyDown={handleKeyDown}
-          autoFocus
-        />
+        <div className="relative" ref={dropdownRef}>
+          <input
+            type={current.type === 'email' ? 'email' : current.type === 'date' ? 'date' : 'text'}
+            className={`input ${error ? 'border-red-500 focus:ring-red-500' : ''}`}
+            placeholder={getPlaceholder(current.type)}
+            value={inputValue}
+            onChange={(e) => { setInputValue(e.target.value); setError(''); }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+            autoFocus
+          />
+          {showDropdown && (
+            <ul className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+              {suggestions.map((c) => (
+                <li
+                  key={c.email}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setInputValue(c.email);
+                    setError('');
+                    setShowDropdown(false);
+                  }}
+                  className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-700 cursor-pointer transition-colors"
+                >
+                  <span className="text-sm font-medium text-white truncate">{c.name}</span>
+                  <span className="text-xs text-slate-400 ml-2 shrink-0">{c.email}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
 
         {current.type === 'duration' && (
