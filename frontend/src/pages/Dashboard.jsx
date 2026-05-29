@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ChatInterface from '../components/ChatInterface';
 import AgendaCard from '../components/AgendaCard';
+import StatsBar from '../components/dashboard/StatsBar';
+import ToastContainer from '../components/ui/ToastContainer';
 import { AuthAPI, ZoomAuthAPI } from '../services/api';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [auth, setAuth] = useState({ checked: false, authenticated: false, user: null });
   const [zoom, setZoom] = useState({ authenticated: false, user: null });
   const [error, setError] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [zoomConnecting, setZoomConnecting] = useState(false);
   const [zoomDisconnecting, setZoomDisconnecting] = useState(false);
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = useCallback((message, type = 'info') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  }, []);
+
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   const fetchZoomStatus = () => {
     ZoomAuthAPI.getStatus()
@@ -32,24 +47,25 @@ export default function Dashboard() {
         .catch(() => {});
     } else if (params.get('auth') === 'error') {
       const reason = params.get('reason') || 'unknown error';
-      setError(`Google sign-in failed: ${reason}`);
+      showToast(`Google sign-in failed: ${reason}`, 'error');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('zoom_auth') === 'success') {
       window.history.replaceState({}, '', window.location.pathname);
       fetchZoomStatus();
+      showToast('Zoom connected successfully!', 'success');
     } else if (params.get('zoom_auth') === 'error') {
       const reason = params.get('reason') || 'unknown error';
-      setError(`Zoom sign-in failed: ${reason}`);
+      showToast(`Zoom sign-in failed: ${reason}`, 'error');
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+  }, [showToast]);
 
   const handleLogin = async () => {
     try {
       const res = await AuthAPI.getGoogleAuthUrl();
       window.location.href = res.url;
     } catch {
-      setError('Google OAuth not configured. Add GOOGLE_CLIENT_ID to backend .env');
+      showToast('Google OAuth not configured. Add GOOGLE_CLIENT_ID to backend .env', 'error');
     }
   };
 
@@ -71,7 +87,7 @@ export default function Dashboard() {
       const res = await ZoomAuthAPI.getAuthUrl();
       window.location.href = res.url;
     } catch {
-      setError('Zoom OAuth not configured. Add ZOOM_CLIENT_ID and ZOOM_REDIRECT_URI to backend .env');
+      showToast('Zoom OAuth not configured. Add ZOOM_CLIENT_ID to backend .env', 'error');
       setZoomConnecting(false);
     }
   };
@@ -102,7 +118,7 @@ export default function Dashboard() {
   }
 
   if (!auth.authenticated) {
-    return <LoginScreen onLogin={handleLogin} error={error} onDismissError={() => setError(null)} />;
+    return <LoginScreen onLogin={handleLogin} error={error} onDismissError={() => setError(null)} onGoHome={() => navigate('/')} />;
   }
 
   return (
@@ -185,40 +201,38 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      {/* ── Error banner ── */}
-      {error && (
-        <div className="shrink-0 bg-red-500/10 border-b border-red-500/20 px-4 py-2.5
-          flex items-center justify-between">
-          <p className="text-red-400 text-sm">{error}</p>
-          <button onClick={() => setError(null)}
-            className="text-red-500 hover:text-red-300 text-xs ml-4 shrink-0">
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* ── Main layout ── */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full max-w-7xl mx-auto px-4 sm:px-6 py-5
-          grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 h-full min-h-0">
-            <ChatInterface />
-          </div>
-          <div className="lg:col-span-1 overflow-y-auto space-y-4 pb-4">
-            <AgendaCard />
-            <TipsCard />
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
+          <StatsBar />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" style={{ height: 'calc(100vh - 13rem)' }}>
+            <div className="lg:col-span-2 h-full min-h-0">
+              <ChatInterface />
+            </div>
+            <div className="lg:col-span-1 overflow-y-auto space-y-4 pb-4">
+              <AgendaCard />
+              <TipsCard />
+            </div>
           </div>
         </div>
       </div>
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }
 
 // ─── Login screen ─────────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin, error, onDismissError }) {
+function LoginScreen({ onLogin, error, onDismissError, onGoHome }) {
   return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 px-4">
+      <button onClick={onGoHome} className="absolute top-6 left-6 text-slate-500 hover:text-slate-300 text-sm flex items-center gap-1.5 transition-colors">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Home
+      </button>
       {/* Card */}
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
