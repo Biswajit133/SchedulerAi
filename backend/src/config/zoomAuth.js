@@ -133,13 +133,27 @@ function getSessionUser(req) {
   return req?.session?.zoomUser || null;
 }
 
-function disconnect(req) {
-  return new Promise((resolve, reject) => {
-    if (!req?.session) return resolve();
-    delete req.session.zoomTokens;
-    delete req.session.zoomUser;
-    req.session.save((err) => (err ? reject(err) : resolve()));
-  });
+async function disconnect(req) {
+  if (!req?.session) return;
+
+  // Clear from MongoDB so old tokens aren't restored on next load
+  const googleEmail = req.session?.user?.email;
+  if (googleEmail && isDBConnected()) {
+    try {
+      await User.findOneAndUpdate(
+        { email: googleEmail.toLowerCase() },
+        { $unset: { zoomTokens: '', zoomUser: '' } }
+      );
+    } catch (err) {
+      console.error('[zoomAuth] DB disconnect failed (non-fatal):', err.message);
+    }
+  }
+
+  delete req.session.zoomTokens;
+  delete req.session.zoomUser;
+  await new Promise((resolve, reject) =>
+    req.session.save((err) => (err ? reject(err) : resolve()))
+  );
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

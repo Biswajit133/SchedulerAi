@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SchedulerAI — Product Overview</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      color: #1e293b;
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    /* ── Page layout ── */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 14mm 16mm 14mm 16mm;
+    }
+
+    /* ── Print ── */
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { margin: 0; padding: 12mm 14mm; }
+      .page-break { page-break-before: always; }
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 12px;
+      border-bottom: 2.5px solid #6366f1;
+      margin-bottom: 18px;
+    }
+    .logo-box {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-box svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .header-text h1 { font-size: 22pt; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; }
+    .header-text p  { font-size: 9.5pt; color: #64748b; margin-top: 2px; }
+    .header-badge {
+      margin-left: auto;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #16a34a;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 8.5pt;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #6366f1;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 18px 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e2e8f0;
+    }
+
+    /* ── 2-column grid ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+    /* ── Cards ── */
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .card-title {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .card-body { font-size: 8.5pt; color: #475569; }
+    .card-body ul { padding-left: 14px; }
+    .card-body li { margin-bottom: 2px; }
+
+    /* ── Feature badge row ── */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 8pt;
+      font-weight: 600;
+    }
+    .badge-purple { background: #ede9fe; color: #7c3aed; border: 1px solid #c4b5fd; }
+    .badge-blue   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .badge-green  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-amber  { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .badge-rose   { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+
+    /* ── Cost table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 6px; }
+    th {
+      background: #6366f1;
+      color: #fff;
+      padding: 6px 10px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 8pt;
+    }
+    th:first-child { border-radius: 8px 0 0 0; }
+    th:last-child  { border-radius: 0 8px 0 0; }
+    td { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr:last-child td { border-bottom: none; }
+    .badge-inline {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 7.5pt;
+      font-weight: 700;
+    }
+    .tag-cheapest { background: #dcfce7; color: #15803d; }
+    .tag-popular  { background: #dbeafe; color: #1d4ed8; }
+    .tag-powerful { background: #ede9fe; color: #7c3aed; }
+    .tag-fast     { background: #fef3c7; color: #b45309; }
+
+    /* ── Pricing tiers ── */
+    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+    .tier {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .tier.highlight { border-color: #6366f1; background: #faf5ff; }
+    .tier-name  { font-size: 9pt; font-weight: 700; color: #1e293b; }
+    .tier-price { font-size: 18pt; font-weight: 800; color: #6366f1; margin: 4px 0; }
+    .tier-price span { font-size: 9pt; font-weight: 400; color: #64748b; }
+    .tier-perks { font-size: 7.5pt; color: #475569; text-align: left; margin-top: 6px; }
+    .tier-perks li { margin-bottom: 2px; padding-left: 12px; list-style: none; position: relative; }
+    .tier-perks li::before { content: '✓'; position: absolute; left: 0; color: #6366f1; font-weight: 700; }
+
+    /* ── Roadmap ── */
+    .roadmap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .roadmap-card {
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid;
+    }
+    .rm-q1 { background: #f0fdf4; border-color: #bbf7d0; }
+    .rm-q2 { background: #eff6ff; border-color: #bfdbfe; }
+    .rm-q3 { background: #faf5ff; border-color: #e9d5ff; }
+    .rm-q4 { background: #fffbeb; border-color: #fde68a; }
+    .rm-label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .rm-q1 .rm-label { color: #15803d; }
+    .rm-q2 .rm-label { color: #1d4ed8; }
+    .rm-q3 .rm-label { color: #7c3aed; }
+    .rm-q4 .rm-label { color: #b45309; }
+    .rm-title { font-size: 9pt; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .rm-features { font-size: 8pt; color: #475569; }
+    .rm-features li { margin-bottom: 2px; padding-left: 12px; list-style: none; position: relative; }
+    .rm-features li::before { content: '→'; position: absolute; left: 0; color: #94a3b8; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 7.5pt;
+      color: #94a3b8;
+    }
+
+    /* ── How it works ── */
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 8px 0;
+    }
+    .flow-step {
+      flex: 1;
+      text-align: center;
+      padding: 8px 6px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+    .flow-step-num {
+      display: inline-flex;
+      width: 20px; height: 20px;
+      background: #6366f1;
+      color: #fff;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      font-size: 7.5pt;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .flow-step-label { font-size: 7.5pt; color: #334155; font-weight: 600; }
+    .flow-step-sub   { font-size: 7pt; color: #94a3b8; margin-top: 2px; }
+    .flow-arrow {
+      font-size: 14pt;
+      color: #cbd5e1;
+      flex-shrink: 0;
+      padding: 0 3px;
+    }
+
+    /* ── Highlight box ── */
+    .highlight-box {
+      background: linear-gradient(135deg, #ede9fe 0%, #dbeafe 100%);
+      border: 1px solid #c4b5fd;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin: 10px 0;
+    }
+    .highlight-box p { font-size: 9pt; color: #3730a3; font-weight: 600; }
+    .highlight-box span { font-weight: 400; color: #4338ca; }
+
+    .green-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 8.5pt;
+      color: #15803d;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════ PAGE 1 ══ -->
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1>SchedulerAI</h1>
+      <p>AI-Powered Meeting Scheduler &nbsp;·&nbsp; Product Overview for Management</p>
+    </div>
+    <div class="header-badge">✦ Production Ready</div>
+  </div>
+
+  <!-- Tagline -->
+  <div class="highlight-box">
+    <p>SchedulerAI lets you schedule meetings using plain English. <span>It connects with Google Calendar and Zoom, extracts meeting details with AI, detects conflicts, and sends invites — all in under 30 seconds.</span></p>
+  </div>
+
+  <!-- ── EXISTING FEATURES ── -->
+  <div class="section-title">Current Features</div>
+
+  <div class="badge-row">
+    <span class="badge badge-purple">🤖 AI Extraction</span>
+    <span class="badge badge-blue">📅 Google Calendar</span>
+    <span class="badge badge-blue">🎥 Zoom Integration</span>
+    <span class="badge badge-green">🔐 Google OAuth</span>
+    <span class="badge badge-amber">⚡ Smart Slot Finder</span>
+    <span class="badge badge-rose">🚨 Priority Detection</span>
+    <span class="badge badge-purple">📋 Agenda View</span>
+    <span class="badge badge-green">📧 Auto Invites</span>
+    <span class="badge badge-blue">🔄 Multi-AI Providers</span>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">🤖 Natural Language Scheduling</div>
+      <div class="card-body">
+        Type raw meeting notes or plain sentences like <em>"Schedule a budget review with John tomorrow at 3 PM for 1 hour"</em>. AI extracts title, participants, date, time, and duration automatically.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📅 Real-Time Calendar Availability</div>
+      <div class="card-body">
+        Connects to Google Calendar via OAuth to check busy slots in real time. If your chosen time is taken, it suggests the nearest available alternatives automatically.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🎥 Google Meet &amp; Zoom</div>
+      <div class="card-body">
+        Supports two meeting platforms. Google Meet links are generated automatically. Zoom uses Server-to-Server OAuth for enterprise-grade integration — user picks the platform before booking.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📧 Automatic Invite Dispatch</div>
+      <div class="card-body">
+        Once a slot is confirmed, calendar invites are sent to all participants instantly via Google Calendar. No manual copy-paste of links or emails needed.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ Smart Missing Field Recovery</div>
+      <div class="card-body">
+        If any required detail is missing (e.g. no time or email), the system asks one targeted follow-up question at a time rather than showing a big form. Keeps the UX conversational.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🚨 Priority &amp; Urgency Detection</div>
+      <div class="card-body">
+        Detects keywords like "urgent", "critical", "ASAP" from meeting notes and assigns a priority badge (High / Medium / Low) to each scheduled meeting automatically.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HOW IT WORKS ── -->
+  <div class="section-title">How It Works — User Flow</div>
+
+  <div class="flow-row">
+    <div class="flow-step">
+      <div><div class="flow-step-num">1</div></div>
+      <div class="flow-step-label">Sign In</div>
+      <div class="flow-step-sub">Google OAuth login</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">2</div></div>
+      <div class="flow-step-label">Type Notes</div>
+      <div class="flow-step-sub">Plain English input</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">3</div></div>
+      <div class="flow-step-label">AI Extracts</div>
+      <div class="flow-step-sub">Title, time, people</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">4</div></div>
+      <div class="flow-step-label">Pick Platform</div>
+      <div class="flow-step-sub">Meet or Zoom</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">5</div></div>
+      <div class="flow-step-label">Choose Slot</div>
+      <div class="flow-step-sub">Available times shown</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">6</div></div>
+      <div class="flow-step-label">Confirmed ✓</div>
+      <div class="flow-step-sub">Invite sent instantly</div>
+    </div>
+  </div>
+
+  <!-- ── TECH STACK ── -->
+  <div class="section-title">Tech Stack</div>
+
+  <div class="three-col">
+    <div class="card">
+      <div class="card-title">Frontend</div>
+      <div class="card-body">
+        <ul>
+          <li>React 18 + Vite</li>
+          <li>TailwindCSS 3 (dark theme)</li>
+          <li>Responsive, mobile-ready</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Backend</div>
+      <div class="card-body">
+        <ul>
+          <li>Node.js + Express</li>
+          <li>Google Calendar API v3</li>
+          <li>Zoom Server-to-Server OAuth</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">AI Providers</div>
+      <div class="card-body">
+        <ul>
+          <li>Groq (Llama 3.1 70B)</li>
+          <li>OpenAI (GPT-4o / mini)</li>
+          <li>Claude (Anthropic)</li>
+          <li>Gemini (Google)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer page 1 -->
+  <div class="footer">
+    <span>SchedulerAI — Confidential Product Overview &nbsp;·&nbsp; Prepared by Biswajit Singha</span>
+    <span>May 2026 &nbsp;·&nbsp; Page 1 of 2</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════ PAGE 2 ══ -->
+<div class="page page-break">
+
+  <!-- Header (compact) -->
+  <div class="header" style="margin-bottom:14px;">
+    <div class="logo-box" style="width:36px;height:36px;">
+      <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1 style="font-size:16pt;">SchedulerAI</h1>
+      <p>AI API Cost Analysis &amp; Business Pricing Model</p>
+    </div>
+    <div class="header-badge">Cost &amp; Monetisation</div>
+  </div>
+
+  <!-- ── AI API COST COMPARISON ── -->
+  <div class="section-title">AI Provider Cost Comparison</div>
+  <p style="font-size:8pt;color:#64748b;margin-bottom:6px;">
+    Each meeting scheduling request uses approx. <strong>~600 input tokens</strong> (user notes + prompt) and <strong>~250 output tokens</strong> (extracted JSON). Costs below are per provider.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Input (per 1M tokens)</th>
+        <th>Output (per 1M tokens)</th>
+        <th>Cost per meeting request</th>
+        <th>Tag</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Groq</strong></td>
+        <td>Llama 3.1 70B</td>
+        <td>$0.59</td>
+        <td>$0.79</td>
+        <td>~$0.00055</td>
+        <td><span class="badge-inline tag-cheapest">Cheapest</span></td>
+      </tr>
+      <tr>
+        <td><strong>Groq</strong></td>
+        <td>Llama 3.3 70B</td>
+        <td>$0.59</td>
+        <td>$0.79</td>
+        <td>~$0.00055</td>
+        <td><span class="badge-inline tag-fast">Fastest</span></td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI</strong></td>
+        <td>GPT-4o mini</td>
+        <td>$0.15</td>
+        <td>$0.60</td>
+        <td>~$0.00024</td>
+        <td><span class="badge-inline tag-popular">Popular</span></td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI</strong></td>
+        <td>GPT-4o</td>
+        <td>$2.50</td>
+        <td>$10.00</td>
+        <td>~$0.0040</td>
+        <td><span class="badge-inline tag-powerful">Powerful</span></td>
+      </tr>
+      <tr>
+        <td><strong>Claude</strong></td>
+        <td>Haiku 4.5</td>
+        <td>$0.80</td>
+        <td>$4.00</td>
+        <td>~$0.0015</td>
+        <td><span class="badge-inline tag-fast">Fast</span></td>
+      </tr>
+      <tr>
+        <td><strong>Claude</strong></td>
+        <td>Sonnet 4.6</td>
+        <td>$3.00</td>
+        <td>$15.00</td>
+        <td>~$0.0056</td>
+        <td><span class="badge-inline tag-powerful">Powerful</span></td>
+      </tr>
+      <tr>
+        <td><strong>Gemini</strong></td>
+        <td>1.5 Flash</td>
+        <td>$0.075</td>
+        <td>$0.30</td>
+        <td>~$0.00012</td>
+        <td><span class="badge-inline tag-cheapest">Ultra Cheap</span></td>
+      </tr>
+      <tr>
+        <td><strong>Gemini</strong></td>
+        <td>1.5 Pro</td>
+        <td>$1.25</td>
+        <td>$5.00</td>
+        <td>~$0.0020</td>
+        <td><span class="badge-inline tag-popular">Balanced</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="green-box">
+    <strong>Recommended default:</strong> Groq (Llama 3.3 70B) — lowest cost, fastest response (~0.2s). Switch to GPT-4o / Claude Sonnet for enterprise accuracy-critical workloads via a single env variable.
+  </div>
+
+  <!-- ── USER PRICING MODEL ── -->
+  <div class="section-title">Suggested User Pricing Model</div>
+  <p style="font-size:8pt;color:#64748b;margin-bottom:4px;">
+    Based on <strong>Groq as default AI</strong> (cheapest). Cost per 100 meetings = ~$0.055. Pricing below includes infrastructure, API margin, and business profit.
+  </p>
+
+  <div class="pricing-grid">
+    <div class="tier">
+      <div class="tier-name">Free</div>
+      <div class="tier-price">$0 <span>/mo</span></div>
+      <ul class="tier-perks">
+        <li>10 meetings/month</li>
+        <li>Google Meet only</li>
+        <li>1 Google account</li>
+        <li>Basic AI (Groq)</li>
+      </ul>
+    </div>
+    <div class="tier highlight">
+      <div class="tier-name">Pro ⭐</div>
+      <div class="tier-price">$9 <span>/mo</span></div>
+      <ul class="tier-perks">
+        <li>200 meetings/month</li>
+        <li>Google Meet + Zoom</li>
+        <li>Priority AI (GPT-4o mini)</li>
+        <li>Agenda dashboard</li>
+        <li>Email invites</li>
+      </ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Business</div>
+      <div class="tier-price">$29 <span>/mo</span></div>
+      <ul class="tier-perks">
+        <li>Unlimited meetings</li>
+        <li>All AI providers</li>
+        <li>Team members (5 seats)</li>
+        <li>Advanced analytics</li>
+        <li>Priority support</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="font-size:7.5pt;color:#94a3b8;margin-top:6px;">
+    <strong>Unit economics (Pro plan, 200 meetings/month):</strong> &nbsp;AI cost ≈ $0.05 &nbsp;·&nbsp; Server ≈ $2 &nbsp;·&nbsp; Total cost ≈ $2.05 &nbsp;·&nbsp; Gross margin ≈ <strong style="color:#15803d;">77%</strong> per Pro user.
+  </div>
+
+  <!-- ── ROADMAP ── -->
+  <div class="section-title">Product Roadmap</div>
+
+  <div class="roadmap-grid">
+    <div class="roadmap-card rm-q1">
+      <div class="rm-label">Q3 2026 — Near Term</div>
+      <div class="rm-title">Core Platform Hardening</div>
+      <ul class="rm-features">
+        <li>PostgreSQL / MongoDB persistent storage (replace JSON file)</li>
+        <li>Microsoft Teams &amp; Outlook Calendar integration</li>
+        <li>Recurring meeting support ("every Monday at 10 AM")</li>
+        <li>Email notification system for reminders</li>
+      </ul>
+    </div>
+    <div class="roadmap-card rm-q2">
+      <div class="rm-label">Q3–Q4 2026 — Growth</div>
+      <div class="rm-title">Team &amp; Collaboration</div>
+      <ul class="rm-features">
+        <li>Multi-user workspace with role-based access</li>
+        <li>Shared team calendar with group availability view</li>
+        <li>Meeting templates for recurring meeting types</li>
+        <li>Slack / WhatsApp bot integration for scheduling</li>
+      </ul>
+    </div>
+    <div class="roadmap-card rm-q3">
+      <div class="rm-label">Q4 2026 — Intelligence</div>
+      <div class="rm-title">Advanced AI Features</div>
+      <ul class="rm-features">
+        <li>AI-generated meeting agendas from context</li>
+        <li>Post-meeting summary &amp; action-item extraction</li>
+        <li>Smart rescheduling when conflicts arise automatically</li>
+        <li>Attendee preference learning (preferred times)</li>
+      </ul>
+    </div>
+    <div class="roadmap-card rm-q4">
+      <div class="rm-label">2027 — Enterprise</div>
+      <div class="rm-title">Scale &amp; Analytics</div>
+      <ul class="rm-features">
+        <li>SSO (SAML / OKTA) for enterprise login</li>
+        <li>Scheduling analytics dashboard (meeting load, trends)</li>
+        <li>Public booking page (Calendly-style) with custom branding</li>
+        <li>REST API for third-party integrations &amp; white-label</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── SUMMARY BAR ── -->
+  <div style="margin-top:12px;">
+    <div class="two-col" style="gap:8px;">
+      <div class="card" style="background:linear-gradient(135deg,#ede9fe,#dbeafe);border-color:#c4b5fd;">
+        <div class="card-title" style="color:#4338ca;">Business Opportunity</div>
+        <div class="card-body" style="color:#3730a3;">
+          The AI scheduling market is growing rapidly. SchedulerAI targets knowledge workers (100M+ globally) who waste 4–6 hours/week on manual scheduling. Even at $9/user/month, 1,000 Pro users = <strong>$108K ARR</strong> with 77%+ gross margin.
+        </div>
+      </div>
+      <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-color:#bbf7d0;">
+        <div class="card-title" style="color:#15803d;">Why We Win</div>
+        <div class="card-body" style="color:#166534;">
+          <ul style="padding-left:14px;">
+            <li>No rigid forms — 100% conversational input</li>
+            <li>Multi-AI provider flexibility (cost vs. quality trade-off)</li>
+            <li>Google + Zoom in one product, not separate tools</li>
+            <li>Ultra-low marginal cost (~$0.05/100 meetings)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer page 2 -->
+  <div class="footer">
+    <span>SchedulerAI — Confidential Product Overview &nbsp;·&nbsp; Prepared by Biswajit Singha</span>
+    <span>May 2026 &nbsp;·&nbsp; Page 2 of 2</span>
+  </div>
+</div>
+
+</body>
+</html>

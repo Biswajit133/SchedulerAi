@@ -301,17 +301,17 @@ class MeetingController {
       if (error) {
         const reason = error_description || error;
         console.error('[zoomCallback] Zoom returned error:', error, error_description);
-        return res.redirect(`${frontendUrl}?zoom_auth=error&reason=${encodeURIComponent(reason)}`);
+        return res.redirect(`${frontendUrl}/app?zoom_auth=error&reason=${encodeURIComponent(reason)}`);
       }
       if (!code) {
         console.error('[zoomCallback] No code and no error in query. Full query:', req.query);
-        return res.redirect(`${frontendUrl}?zoom_auth=error&reason=${encodeURIComponent('No authorization code received from Zoom')}`);
+        return res.redirect(`${frontendUrl}/app?zoom_auth=error&reason=${encodeURIComponent('No authorization code received from Zoom')}`);
       }
       await zoomAuth.exchangeCode(code, req);
-      res.redirect(`${frontendUrl}?zoom_auth=success`);
+      res.redirect(`${frontendUrl}/app?zoom_auth=success`);
     } catch (err) {
       console.error('[zoomCallback] Exception:', err.message);
-      res.redirect(`${frontendUrl}?zoom_auth=error&reason=${encodeURIComponent(err.message || 'unknown')}`);
+      res.redirect(`${frontendUrl}/app?zoom_auth=error&reason=${encodeURIComponent(err.message || 'unknown')}`);
     }
   }
 

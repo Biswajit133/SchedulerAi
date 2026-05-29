@@ -1,14 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { AgendaAPI } from '../../services/api';
 
+function parseEventTime(e) {
+  // API returns startTime like "14:00"; fall back to e.start for ISO strings
+  const raw = e.start || e.startTime;
+  if (!raw) return null;
+  if (raw.includes('T') || raw.includes('-')) return new Date(raw);
+  // "HH:MM" — combine with today's date
+  const [h, m] = raw.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 function getNextMeetingCountdown(events) {
   if (!events || events.length === 0) return null;
   const now = new Date();
   const upcoming = events
-    .filter((e) => e.start && new Date(e.start) > now)
-    .sort((a, b) => new Date(a.start) - new Date(b.start));
+    .map((e) => ({ event: e, time: parseEventTime(e) }))
+    .filter(({ time }) => time && time > now)
+    .sort((a, b) => a.time - b.time);
   if (!upcoming.length) return null;
-  return { event: upcoming[0], time: new Date(upcoming[0].start) };
+  return upcoming[0];
 }
 
 function formatCountdown(targetTime) {
@@ -46,12 +59,12 @@ export default function StatsBar() {
   const nextLabel = stats.nextMeeting
     ? formatCountdown(stats.nextMeeting.time)
     : 'None today';
-  const nextTitle = stats.nextMeeting?.event?.summary || stats.nextMeeting?.event?.title || '';
+  const nextTitle = stats.nextMeeting?.event?.title || stats.nextMeeting?.event?.summary || '';
 
   if (stats.loading) {
     return (
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {[0, 1, 2].map((i) => (
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {[0, 1].map((i) => (
           <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 animate-pulse h-20" />
         ))}
       </div>
@@ -59,7 +72,7 @@ export default function StatsBar() {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4 mb-6">
+    <div className="grid grid-cols-2 gap-4 mb-6">
       {/* Meetings this week */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center gap-4">
         <div className="w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center shrink-0">
@@ -72,7 +85,7 @@ export default function StatsBar() {
       </div>
 
       {/* Hours saved */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center gap-4">
+      <div className="hidden bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center gap-4">
         <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
           <ClockIcon className="w-5 h-5 text-emerald-400" />
         </div>

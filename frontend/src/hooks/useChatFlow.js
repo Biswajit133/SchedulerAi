@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { MeetingAPI } from '../services/api';
+import { useState, useRef, useEffect } from 'react';
+import { MeetingAPI, ContactAPI, AuthAPI } from '../services/api';
 
 let _id = 0;
 const uid = () => ++_id;
@@ -46,6 +46,14 @@ export function useChatFlow() {
     platform: null,
   });
 
+  const contacts = useRef([]);
+  const currentUser = useRef(null);
+
+  useEffect(() => {
+    ContactAPI.getContacts().then((r) => { contacts.current = r.contacts || []; }).catch(() => {});
+    AuthAPI.getMe().then((r) => { currentUser.current = r.user || r || null; }).catch(() => {});
+  }, []);
+
   // ── Message helpers ────────────────────────────────────────────────────────
 
   function pushBot(text, extra = {}) {
@@ -62,7 +70,35 @@ export function useChatFlow() {
     if (loading || !text.trim()) return;
     pushUser(text);
 
+    const t = text.trim().toLowerCase();
     const { phase } = conv.current;
+
+    // Cancel in any active phase
+    if (['cancel', 'stop', 'quit', 'exit', 'restart', 'start over', 'reset'].includes(t)) {
+      resetConv();
+      pushBot("No problem! Let's start fresh. Describe the meeting you'd like to schedule.");
+      return;
+    }
+
+    // Intelligently answer off-topic questions instead of swallowing them as field values
+    const isQuestion = /^(what|who|where|when|why|how|tell me|show me|do you|can you|is there)\b/i.test(text.trim());
+    if (isQuestion && phase !== PHASE.IDLE && phase !== PHASE.DONE) {
+      const answered = tryAnswerQuestion(text, contacts.current, currentUser.current, pushBot);
+      if (answered) {
+        // Re-prompt the pending question so the user knows what's still needed
+        const field = conv.current.missing[conv.current.missingIdx];
+        if (phase === PHASE.MISSING && field) {
+          pushBot(`Still need: ${field.question}`);
+        }
+      } else {
+        const field = conv.current.missing[conv.current.missingIdx];
+        const hint = phase === PHASE.MISSING && field
+          ? `I can only help with scheduling. Still waiting for: "${field.question}"\n\nType "cancel" to start over.`
+          : 'I can only help you schedule meetings. Type "cancel" to start over.';
+        pushBot(hint);
+      }
+      return;
+    }
 
     if (phase === PHASE.IDLE || phase === PHASE.DONE) {
       if (phase === PHASE.DONE) resetConv();
@@ -471,6 +507,64 @@ export function useChatFlow() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function tryAnswerQuestion(text, contactList, user, pushBot) {
+  const lower = text.toLowerCase();
+
+  // "what is my name" / "who am i"
+  if (/\bmy name\b|\bwho am i\b/.test(lower)) {
+    const name = user?.name || user?.displayName || user?.email;
+    if (name) {
+      pushBot(`Your name is ${name}.`);
+    } else {
+      pushBot("I don't have your name on file. You can update it in your profile settings.");
+    }
+    return true;
+  }
+
+  // "what is my email"
+  if (/\bmy email\b/.test(lower)) {
+    const email = user?.email;
+    if (email) {
+      pushBot(`Your email is ${email}.`);
+    } else {
+      pushBot("I don't have your email on file.");
+    }
+    return true;
+  }
+
+  // "what is <name>'s email" / "what is <name> email"
+  const emailMatch = lower.match(/what\s+is\s+(.+?)(?:'s)?\s+email/);
+  if (emailMatch) {
+    const query = emailMatch[1].trim();
+    const found = contactList.find((c) =>
+      c.name?.toLowerCase().includes(query) || query.includes(c.name?.toLowerCase())
+    );
+    if (found) {
+      pushBot(`${found.name}'s email is ${found.email}.`);
+    } else {
+      pushBot(`I don't have an email for "${emailMatch[1].trim()}" in your contacts. You can add contacts in the Contacts section.`);
+    }
+    return true;
+  }
+
+  // "who is <name>" / "tell me about <name>"
+  const whoMatch = lower.match(/(?:who is|tell me about)\s+(.+)/);
+  if (whoMatch) {
+    const query = whoMatch[1].trim();
+    const found = contactList.find((c) =>
+      c.name?.toLowerCase().includes(query) || query.includes(c.name?.toLowerCase())
+    );
+    if (found) {
+      pushBot(`${found.name} is in your contacts (${found.email}).`);
+    } else {
+      pushBot(`I don't have "${query}" in your contacts.`);
+    }
+    return true;
+  }
+
+  return false; // couldn't answer
+}
 
 function addMinutes(time, minutes) {
   const [h, m] = time.split(':').map(Number);

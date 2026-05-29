@@ -93,6 +93,11 @@ export default function Dashboard() {
   };
 
   const handleDisconnectZoom = async () => {
+    const confirmed = window.confirm(
+      'Disconnect Zoom?\n\nThis will remove your Zoom account and all saved tokens. You can reconnect anytime.'
+    );
+    if (!confirmed) return;
+
     setZoomDisconnecting(true);
     try {
       await ZoomAuthAPI.disconnect();
