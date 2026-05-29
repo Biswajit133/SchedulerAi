@@ -12,6 +12,8 @@ router.get('/meetings/slots', controller.getSlots.bind(controller));
 router.get('/meetings/suggest', controller.smartSuggest.bind(controller));
 router.post('/meetings/summary', controller.getMeetingSummary.bind(controller));
 router.post('/meetings/schedule', validateSchedule, controller.schedule.bind(controller));
+router.delete('/meetings/:eventId', controller.cancelMeeting.bind(controller));
+router.patch('/meetings/:eventId/reschedule', controller.rescheduleMeeting.bind(controller));
 router.get('/meetings', controller.list.bind(controller));
 
 // Agenda

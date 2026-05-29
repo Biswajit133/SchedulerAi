@@ -108,6 +108,7 @@ class SlotFinder {
           joinUrl,
           platform,
           htmlLink: event.htmlLink || null,
+          id: event.id || null,
         };
       })
       .filter(Boolean);

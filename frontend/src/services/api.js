@@ -28,6 +28,9 @@ export const MeetingAPI = {
   getSummary: (meetings) => api.post('/meetings/summary', { meetings }),
   schedule: (meeting, slot) => api.post('/meetings/schedule', { meeting, slot }),
   list: () => api.get('/meetings'),
+  cancel: (eventId) => api.delete(`/meetings/${encodeURIComponent(eventId)}`),
+  reschedule: (eventId, date, startTime, endTime) =>
+    api.patch(`/meetings/${encodeURIComponent(eventId)}/reschedule`, { date, startTime, endTime }),
 };
 
 export const AgendaAPI = {

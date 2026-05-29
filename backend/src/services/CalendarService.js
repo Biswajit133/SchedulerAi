@@ -96,6 +96,25 @@ class CalendarService {
     };
   }
 
+  async deleteEvent(eventId, authClient) {
+    if (!authClient) throw new Error('Google Calendar not connected. Please sign in first.');
+    const calendar = google.calendar({ version: 'v3', auth: authClient });
+    await calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'all' });
+    return { success: true };
+  }
+
+  async updateEvent(eventId, updates, authClient) {
+    if (!authClient) throw new Error('Google Calendar not connected. Please sign in first.');
+    const calendar = google.calendar({ version: 'v3', auth: authClient });
+    const response = await calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      resource: updates,
+      sendUpdates: 'all',
+    });
+    return { success: true, event: response.data };
+  }
+
   _createMockEvent(eventBody, platform = 'google_meet', meetingLink = null) {
     return {
       id: `mock-${Date.now()}`,

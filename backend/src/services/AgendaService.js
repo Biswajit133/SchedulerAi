@@ -78,6 +78,7 @@ class AgendaService {
     return (busySlots || [])
       .filter((s) => s.startTime)
       .map((s) => ({
+        id: s.id || null,
         title: s.title || 'Busy',
         startTime: s.startTime,
         endTime: s.endTime,

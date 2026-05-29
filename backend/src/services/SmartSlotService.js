@@ -4,7 +4,10 @@ const SlotFinder = require('../utils/SlotFinder');
 class SmartSlotService {
   // Given a requested time that's busy, return nearest available slots sorted by proximity
   suggestNearestSlots(requestedTime, busySlots, date, durationMinutes, limit = 3) {
-    const available = SlotFinder.findAvailableSlots(busySlots, date, durationMinutes || 60);
+    // For today, exclude slots that have already passed
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const minStart = date === todayStr ? SlotFinder.currentMinutes() : null;
+    const available = SlotFinder.findAvailableSlots(busySlots, date, durationMinutes || 60, minStart);
     if (available.length === 0) return [];
 
     const reqMinutes = DateParser.timeToMinutes(requestedTime);

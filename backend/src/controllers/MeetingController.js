@@ -1,6 +1,7 @@
 const MeetingService = require('../services/MeetingService');
 const AgendaService = require('../services/AgendaService');
 const MeetingSummaryService = require('../services/MeetingSummaryService');
+const CalendarService = require('../services/CalendarService');
 const {
   getAuthUrl,
   exchangeCode,
@@ -150,6 +151,42 @@ class MeetingController {
       res.json({ success: true, summary, event, invites });
     } catch (err) {
       console.error('[schedule]', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // DELETE /api/meetings/:eventId
+  async cancelMeeting(req, res) {
+    try {
+      const { eventId } = req.params;
+      if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+      const authClient = await this._auth(req);
+      await CalendarService.deleteEvent(eventId, authClient);
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[cancel]', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // PATCH /api/meetings/:eventId/reschedule
+  async rescheduleMeeting(req, res) {
+    try {
+      const { eventId } = req.params;
+      const { date, startTime, endTime } = req.body;
+      if (!eventId || !date || !startTime || !endTime) {
+        return res.status(400).json({ error: 'eventId, date, startTime, endTime are required' });
+      }
+      const authClient = await this._auth(req);
+      const tz = process.env.TIMEZONE || 'UTC';
+      const updates = {
+        start: { dateTime: new Date(`${date}T${startTime}:00`).toISOString(), timeZone: tz },
+        end:   { dateTime: new Date(`${date}T${endTime}:00`).toISOString(),   timeZone: tz },
+      };
+      const result = await CalendarService.updateEvent(eventId, updates, authClient);
+      res.json({ success: true, ...result });
+    } catch (err) {
+      console.error('[reschedule]', err);
       res.status(500).json({ error: err.message });
     }
   }

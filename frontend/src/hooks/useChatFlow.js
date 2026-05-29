@@ -1,18 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
-import { MeetingAPI, ContactAPI, AuthAPI } from '../services/api';
+import { MeetingAPI, AgendaAPI, ContactAPI, AuthAPI } from '../services/api';
 
 let _id = 0;
 const uid = () => ++_id;
 
 // ─── Phase constants ──────────────────────────────────────────────────────────
 const PHASE = {
-  IDLE:     'IDLE',     // waiting for initial input
-  PICKING:  'PICKING',  // multiple meetings extracted, user picks one
-  MISSING:  'MISSING',  // collecting missing fields one-by-one
-  CONFIRM:  'CONFIRM',  // showing final summary, waiting for explicit confirmation
-  PLATFORM: 'PLATFORM', // asking user to choose meeting platform
-  SLOTS:    'SLOTS',    // showing available slots
-  DONE:     'DONE',     // meeting scheduled, offer another
+  IDLE:              'IDLE',
+  PICKING:           'PICKING',
+  MISSING:           'MISSING',
+  CONFIRM:           'CONFIRM',
+  PLATFORM:          'PLATFORM',
+  SLOTS:             'SLOTS',
+  DONE:              'DONE',
+  CANCEL_CONFIRM:    'CANCEL_CONFIRM',    // waiting user to confirm cancellation
+  RESCHEDULE_TIME:   'RESCHEDULE_TIME',   // waiting user to provide new time
+  RESCHEDULE_CONFIRM:'RESCHEDULE_CONFIRM',// waiting user to confirm reschedule
 };
 
 const WELCOME = {
@@ -44,10 +47,12 @@ export function useChatFlow() {
     answers: {},
     slots: [],
     platform: null,
+    pendingAction: null, // { type: 'cancel'|'reschedule', event, newDate?, newTime?, newEndTime? }
   });
 
   const contacts = useRef([]);
   const currentUser = useRef(null);
+  const lastMentionedEvent = useRef(null); // last event surfaced to the user via calendar lookup
 
   useEffect(() => {
     ContactAPI.getContacts().then((r) => { contacts.current = r.contacts || []; }).catch(() => {});
@@ -80,9 +85,28 @@ export function useChatFlow() {
       return;
     }
 
+    // Handle cancel / reschedule intents — allowed from any phase (resets current flow)
+    const actionHandled = await tryHandleCancelReschedule(text);
+    if (actionHandled) return;
+
+    // Handle calendar lookup questions (async, needs API)
+    const calendarHandled = await tryAnswerCalendarQuestion(
+      text, pushBot, (v) => setLoading(v),
+      (evt) => { lastMentionedEvent.current = evt; },
+    );
+    if (calendarHandled) {
+      // Only re-prompt the pending field if the user is mid-flow and hasn't switched context
+      const stillMissing = conv.current.phase === PHASE.MISSING;
+      if (stillMissing) {
+        const field = conv.current.missing[conv.current.missingIdx];
+        if (field) pushBot(`To continue scheduling, I still need: ${field.question}`);
+      }
+      return;
+    }
+
     // Intelligently answer off-topic questions instead of swallowing them as field values
     const isQuestion = /^(what|who|where|when|why|how|tell me|show me|do you|can you|is there)\b/i.test(text.trim());
-    if (isQuestion && phase !== PHASE.IDLE && phase !== PHASE.DONE) {
+    if (isQuestion) {
       const answered = tryAnswerQuestion(text, contacts.current, currentUser.current, pushBot);
       if (answered) {
         // Re-prompt the pending question so the user knows what's still needed
@@ -90,14 +114,30 @@ export function useChatFlow() {
         if (phase === PHASE.MISSING && field) {
           pushBot(`Still need: ${field.question}`);
         }
-      } else {
+        return;
+      }
+      // Could not answer — in active phases, block with a hint; in IDLE/DONE check if scheduling-related
+      if (phase !== PHASE.IDLE && phase !== PHASE.DONE) {
         const field = conv.current.missing[conv.current.missingIdx];
         const hint = phase === PHASE.MISSING && field
           ? `I can only help with scheduling. Still waiting for: "${field.question}"\n\nType "cancel" to start over.`
           : 'I can only help you schedule meetings. Type "cancel" to start over.';
         pushBot(hint);
+        return;
       }
-      return;
+
+      // In IDLE/DONE: if the message has no scheduling intent, reply as a scheduling assistant
+      const hasSchedulingIntent = /\b(meeting|schedule|call|appointment|book|slot|calendar|zoom|meet|teams|standup|sync|session|interview|review)\b/i.test(text);
+      if (!hasSchedulingIntent) {
+        pushBot(
+          "I'm a scheduling AI assistant — I can only help you create and manage meeting schedules.\n\n" +
+          'Try something like:\n' +
+          '  • "Schedule a meeting with John tomorrow at 3pm"\n' +
+          '  • "Book a 30-min call with the team on Friday"\n' +
+          '  • "Urgent sync with Alice about the launch ASAP"'
+        );
+        return;
+      }
     }
 
     if (phase === PHASE.IDLE || phase === PHASE.DONE) {
@@ -140,6 +180,12 @@ export function useChatFlow() {
           : `Type a number 1–${slots.length} to pick a slot, or tap one of the buttons above.`;
         pushBot(hint);
       }
+    } else if (phase === PHASE.CANCEL_CONFIRM) {
+      await doCancelConfirm(text);
+    } else if (phase === PHASE.RESCHEDULE_TIME) {
+      await doRescheduleTime(text);
+    } else if (phase === PHASE.RESCHEDULE_CONFIRM) {
+      await doRescheduleConfirm(text);
     }
   }
 
@@ -485,6 +531,251 @@ export function useChatFlow() {
     }
   }
 
+  // ── Cancel / Reschedule intent detection ─────────────────────────────────
+
+  async function tryHandleCancelReschedule(text) {
+    const lower = text.toLowerCase();
+
+    const isCancelIntent = /\b(cancel|delete|remove)\b.*(meeting|call|appointment|standup|sync|session|interview|review)/i.test(lower)
+      || /\b(meeting|call|appointment|standup|sync).*(cancel|delete|remove)\b/i.test(lower);
+
+    const isRescheduleIntent = /\b(reschedule|move|change|shift|postpone|delay)\b.*(meeting|call|appointment|standup|sync|session|interview|review)/i.test(lower)
+      || /\b(meeting|call|appointment|standup|sync).*(reschedule|move|change|shift)\b/i.test(lower);
+
+    if (!isCancelIntent && !isRescheduleIntent) return false;
+
+    // Abandon any in-progress scheduling flow when user switches to cancel/reschedule
+    const currentPhase = conv.current.phase;
+    const activeFlowPhases = [PHASE.MISSING, PHASE.CONFIRM, PHASE.PLATFORM, PHASE.SLOTS, PHASE.PICKING];
+    if (activeFlowPhases.includes(currentPhase)) {
+      resetConv();
+    }
+
+    setLoading(true);
+    let meetings = [];
+    try {
+      const res = await AgendaAPI.getToday();
+      meetings = (res.meetings || []).filter((m) => m.id); // only real events can be modified
+    } catch (e) {
+      pushBot(`Couldn't fetch your meetings: ${e.message}`);
+      setLoading(false);
+      return true;
+    } finally {
+      setLoading(false);
+    }
+
+    if (meetings.length === 0) {
+      pushBot("You have no modifiable meetings today. (Only Google Calendar events can be cancelled or rescheduled.)");
+      return true;
+    }
+
+    // "this meeting" / "it" → use the last event the bot mentioned (e.g. from "your next meeting is X")
+    const refersToThis = /\bthis\s+(meeting|call|appointment)\b/i.test(lower);
+    if (refersToThis && lastMentionedEvent.current) {
+      const remembered = meetings.find((m) => m.id === lastMentionedEvent.current.id) || lastMentionedEvent.current;
+      if (isCancelIntent) {
+        conv.current.pendingAction = { type: 'cancel', event: remembered };
+        conv.current.phase = PHASE.CANCEL_CONFIRM;
+        pushBot(`Are you sure you want to cancel **${remembered.title}** at **${remembered.startDisplay}**?\n\nReply "yes" to confirm or "no" to keep it.`);
+      } else {
+        const parsed = parseNewDateTime(lower, remembered);
+        if (parsed) {
+          conv.current.pendingAction = { type: 'reschedule', event: remembered, newDate: parsed.newDate, newStartTime: parsed.newStartTime, newEndTime: parsed.newEndTime };
+          conv.current.phase = PHASE.RESCHEDULE_CONFIRM;
+          pushBot(`I'll reschedule **${remembered.title}** to **${parsed.newDateDisplay}** at **${parsed.newTimeDisplay}**.\n\nReply "confirm" to proceed or "cancel" to abort.`);
+        } else {
+          conv.current.pendingAction = { type: 'reschedule', event: remembered };
+          conv.current.phase = PHASE.RESCHEDULE_TIME;
+          pushBot(`When would you like to move **${remembered.title}**? (e.g. "tomorrow 3pm" or "Friday at 2pm")`);
+        }
+      }
+      return true;
+    }
+
+    // Generic words that should not trigger a title match on their own
+    const GENERIC_TITLE_WORDS = new Set(['meeting', 'call', 'session', 'appointment', 'sync', 'standup', 'interview', 'review', 'chat']);
+
+    // Try to match a specific meeting by title keyword in the user's message
+    const matched = meetings.find((m) => {
+      const title = m.title.toLowerCase();
+      if (lower.includes(title)) return true;
+      return title.split(/\s+/).some((w) => w.length > 3 && !GENERIC_TITLE_WORDS.has(w) && lower.includes(w));
+    });
+
+    const event = matched || (meetings.length === 1 ? meetings[0] : null);
+
+    if (!event) {
+      // Multiple meetings — list them and ask
+      const lines = meetings.map((m, i) => `${i + 1}. **${m.title}** — ${m.startDisplay}`).join('\n');
+      pushBot(
+        `Which meeting would you like to ${isCancelIntent ? 'cancel' : 'reschedule'}?\n\n${lines}\n\nType the number or meeting name.`
+      );
+      // Store intent so next reply can pick the meeting
+      conv.current.pendingAction = { type: isCancelIntent ? 'cancel' : 'reschedule', candidates: meetings };
+      conv.current.phase = isCancelIntent ? PHASE.CANCEL_CONFIRM : PHASE.RESCHEDULE_TIME;
+      return true;
+    }
+
+    if (isCancelIntent) {
+      conv.current.pendingAction = { type: 'cancel', event };
+      conv.current.phase = PHASE.CANCEL_CONFIRM;
+      pushBot(
+        `Are you sure you want to cancel **${event.title}** at **${event.startDisplay}**?\n\nReply "yes" to confirm or "no" to keep it.`
+      );
+    } else {
+      // Reschedule — try to parse new time from the same message
+      const parsed = parseNewDateTime(lower, event);
+      if (parsed) {
+        conv.current.pendingAction = {
+          type: 'reschedule', event,
+          newDate: parsed.newDate, newStartTime: parsed.newStartTime, newEndTime: parsed.newEndTime,
+        };
+        conv.current.phase = PHASE.RESCHEDULE_CONFIRM;
+        pushBot(
+          `I'll reschedule **${event.title}** to **${parsed.newDateDisplay}** at **${parsed.newTimeDisplay}**.\n\nReply "confirm" to proceed or "cancel" to abort.`
+        );
+      } else {
+        conv.current.pendingAction = { type: 'reschedule', event };
+        conv.current.phase = PHASE.RESCHEDULE_TIME;
+        pushBot(`When would you like to move **${event.title}**? (e.g. "tomorrow 3pm" or "Friday at 2pm")`);
+      }
+    }
+    return true;
+  }
+
+  // ── Cancel flow ───────────────────────────────────────────────────────────
+
+  async function doCancelConfirm(text) {
+    const t = text.trim().toLowerCase();
+    const CONFIRM = ['yes', 'confirm', 'ok', 'sure', 'cancel it', 'delete it', 'remove it', 'y'];
+    const DENY    = ['no', 'nope', 'n', 'keep it', 'nevermind', 'never mind', 'abort'];
+
+    // If we were waiting for the user to pick from multiple candidates
+    if (conv.current.pendingAction?.candidates) {
+      const candidates = conv.current.pendingAction.candidates;
+      const num = parseInt(t, 10);
+      let picked = null;
+      if (!isNaN(num) && num >= 1 && num <= candidates.length) {
+        picked = candidates[num - 1];
+      } else {
+        picked = candidates.find((m) => m.title.toLowerCase().includes(t));
+      }
+      if (!picked) {
+        pushBot(`Please type a number (1–${candidates.length}) or the meeting name to select.`);
+        return;
+      }
+      conv.current.pendingAction = { type: 'cancel', event: picked };
+      pushBot(`Are you sure you want to cancel **${picked.title}** at **${picked.startDisplay}**?\n\nReply "yes" to confirm or "no" to keep it.`);
+      return;
+    }
+
+    if (DENY.includes(t)) {
+      resetConv();
+      pushBot("No problem — your meeting is kept. Let me know if you need anything else.");
+      return;
+    }
+
+    if (!CONFIRM.includes(t)) {
+      pushBot('Reply "yes" to confirm cancellation, or "no" to keep the meeting.');
+      return;
+    }
+
+    const { pendingAction } = conv.current;
+    setLoading(true);
+    try {
+      await MeetingAPI.cancel(pendingAction.event.id);
+      resetConv();
+      conv.current.phase = PHASE.DONE;
+      pushBot(`Done! **${pendingAction.event.title}** has been cancelled and attendees notified.`);
+      pushBot("Would you like to schedule a new meeting? Just describe it.");
+    } catch (e) {
+      pushBot(`Couldn't cancel the meeting: ${e.message}`);
+      resetConv();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Reschedule flow ───────────────────────────────────────────────────────
+
+  async function doRescheduleTime(text) {
+    const { pendingAction } = conv.current;
+    const t = text.trim().toLowerCase();
+
+    // If we were waiting for the user to pick from multiple candidates
+    if (pendingAction?.candidates) {
+      const candidates = pendingAction.candidates;
+      const num = parseInt(t, 10);
+      let picked = null;
+      if (!isNaN(num) && num >= 1 && num <= candidates.length) {
+        picked = candidates[num - 1];
+      } else {
+        picked = candidates.find((m) => m.title.toLowerCase().includes(t));
+      }
+      if (!picked) {
+        pushBot(`Please type a number (1–${candidates.length}) or the meeting name to select.`);
+        return;
+      }
+      conv.current.pendingAction = { type: 'reschedule', event: picked };
+      pushBot(`When would you like to move **${picked.title}**? (e.g. "tomorrow 3pm" or "Friday at 2pm")`);
+      return;
+    }
+
+    // Parse new date + time from user's reply
+    const parsed = parseNewDateTime(text, pendingAction.event);
+    if (!parsed) {
+      pushBot("I couldn't understand that time. Try something like \"tomorrow 3pm\" or \"Friday at 2:30pm\".");
+      return;
+    }
+
+    const { newDate, newStartTime, newEndTime, newDateDisplay, newTimeDisplay } = parsed;
+    conv.current.pendingAction = { ...pendingAction, newDate, newStartTime, newEndTime };
+    conv.current.phase = PHASE.RESCHEDULE_CONFIRM;
+
+    pushBot(
+      `I'll reschedule **${pendingAction.event.title}** to **${newDateDisplay}** at **${newTimeDisplay}**.\n\nReply "confirm" to proceed or "cancel" to abort.`
+    );
+  }
+
+  async function doRescheduleConfirm(text) {
+    const t = text.trim().toLowerCase();
+    const CONFIRM = ['yes', 'confirm', 'ok', 'sure', 'reschedule it', 'move it', 'y'];
+    const DENY    = ['no', 'nope', 'n', 'cancel', 'nevermind', 'abort'];
+
+    if (DENY.includes(t)) {
+      resetConv();
+      pushBot("No problem — the meeting stays as is. Let me know if you need anything else.");
+      return;
+    }
+
+    if (!CONFIRM.includes(t)) {
+      pushBot('Reply "confirm" to reschedule, or "cancel" to abort.');
+      return;
+    }
+
+    const { pendingAction } = conv.current;
+    setLoading(true);
+    try {
+      await MeetingAPI.reschedule(
+        pendingAction.event.id,
+        pendingAction.newDate,
+        pendingAction.newStartTime,
+        pendingAction.newEndTime,
+      );
+      resetConv();
+      conv.current.phase = PHASE.DONE;
+      pushBot(
+        `Done! **${pendingAction.event.title}** has been rescheduled to **${pendingAction.newDate}** at **${formatTime(pendingAction.newStartTime)}**. Attendees have been notified.`
+      );
+      pushBot("Would you like to schedule another meeting? Just describe it.");
+    } catch (e) {
+      pushBot(`Couldn't reschedule the meeting: ${e.message}`);
+      resetConv();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function resetConv() {
     conv.current = {
       phase: PHASE.IDLE,
@@ -495,7 +786,9 @@ export function useChatFlow() {
       answers: {},
       slots: [],
       platform: null,
+      pendingAction: null,
     };
+    lastMentionedEvent.current = null;
   }
 
   function clearChat() {
@@ -507,6 +800,65 @@ export function useChatFlow() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function tryAnswerCalendarQuestion(text, pushBot, setLoading, onEventMentioned = null) {
+  const lower = text.toLowerCase();
+
+  // Don't intercept scheduling requests — they just happen to contain "meeting" and "today"
+  const isSchedulingRequest = /\b(schedule|book|create|set\s+up|plan|arrange|add|make)\b/i.test(lower);
+  if (isSchedulingRequest) return false;
+
+  const isNextMeeting = /next\s+meeting|upcoming\s+meeting|what.*my.*meeting|my.*next\s+meeting/i.test(lower);
+  const isTodayMeetings =
+    /today['']?s?\s+meeting|meeting.*today|all\s+meeting.*today|provide.*meeting.*today|show.*meeting.*today|meetings?\s+for\s+today/i.test(lower);
+  const isUpcoming = /upcoming\s+meetings?|what\s+meetings?\s+(do\s+i|i\s+have)|my\s+meetings?/i.test(lower);
+
+  if (!isNextMeeting && !isTodayMeetings && !isUpcoming) return false;
+
+  setLoading(true);
+  try {
+    const res = await AgendaAPI.getToday();
+    const meetings = res.meetings || [];
+    const demo = res.demo;
+    const demoNote = demo ? '\n_(Demo data — connect Google Calendar for real events.)_' : '';
+
+    if (meetings.length === 0) {
+      pushBot(`You have no meetings scheduled for today.${demoNote}`);
+      return true;
+    }
+
+    if (isNextMeeting) {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const next = meetings.find((m) => {
+        const [h, min] = m.startTime.split(':').map(Number);
+        return h * 60 + min >= nowMin;
+      }) || meetings[0];
+
+      if (onEventMentioned) onEventMentioned(next);
+      pushBot(
+        `Your next meeting is **${next.title}** at **${next.startDisplay}** – ${next.endDisplay}.${
+          next.joinUrl ? `\nJoin: ${next.joinUrl}` : ''
+        }${demoNote}`
+      );
+    } else {
+      const lines = meetings.map(
+        (m, i) =>
+          `${i + 1}. **${m.title}** — ${m.startDisplay} to ${m.endDisplay}${
+            m.joinUrl ? ` ([Join](${m.joinUrl}))` : ''
+          }`
+      );
+      pushBot(
+        `You have **${meetings.length}** meeting${meetings.length > 1 ? 's' : ''} today:\n\n${lines.join('\n')}${demoNote}`
+      );
+    }
+  } catch (e) {
+    pushBot(`Couldn't fetch your meetings: ${e.message}`);
+  } finally {
+    setLoading(false);
+  }
+  return true;
+}
 
 function tryAnswerQuestion(text, contactList, user, pushBot) {
   const lower = text.toLowerCase();
@@ -564,6 +916,70 @@ function tryAnswerQuestion(text, contactList, user, pushBot) {
   }
 
   return false; // couldn't answer
+}
+
+// Parses a new date+time from user text, returns structured object or null
+function parseNewDateTime(text, existingEvent) {
+  const lower = text.toLowerCase();
+
+  // ── Parse date ────────────────────────────────────────────────────────────
+  let newDate = null;
+  const today = new Date();
+
+  if (/\btomorrow\b/.test(lower)) {
+    const d = new Date(today); d.setDate(d.getDate() + 1);
+    newDate = d.toISOString().slice(0, 10);
+  } else if (/\btoday\b/.test(lower)) {
+    newDate = today.toISOString().slice(0, 10);
+  } else if (/\bnext\s+week\b/.test(lower)) {
+    const d = new Date(today); d.setDate(d.getDate() + 7);
+    newDate = d.toISOString().slice(0, 10);
+  } else {
+    const DAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const dayMatch = lower.match(/\b(next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
+    if (dayMatch) {
+      const targetDay = DAYS.indexOf(dayMatch[2]);
+      const d = new Date(today);
+      let diff = targetDay - d.getDay();
+      if (diff <= 0 || dayMatch[1]) diff += 7;
+      d.setDate(d.getDate() + diff);
+      newDate = d.toISOString().slice(0, 10);
+    }
+  }
+
+  // ── Parse time ────────────────────────────────────────────────────────────
+  let newStartTime = null;
+  const timeMatch = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+  if (timeMatch) {
+    let h = parseInt(timeMatch[1], 10);
+    const m = parseInt(timeMatch[2] || '0', 10);
+    const meridiem = timeMatch[3];
+    if (meridiem === 'pm' && h < 12) h += 12;
+    if (meridiem === 'am' && h === 12) h = 0;
+    if (!meridiem && h < 7) h += 12; // assume PM for ambiguous afternoon hours
+    newStartTime = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+
+  if (!newStartTime) return null;
+
+  // Use same date as existing event if no new date parsed
+  if (!newDate) newDate = existingEvent?.date || today.toISOString().slice(0, 10);
+
+  // Preserve original duration
+  const origDuration = (() => {
+    if (!existingEvent?.startTime || !existingEvent?.endTime) return 60;
+    const [sh, sm] = existingEvent.startTime.split(':').map(Number);
+    const [eh, em] = existingEvent.endTime.split(':').map(Number);
+    return (eh * 60 + em) - (sh * 60 + sm);
+  })();
+
+  const newEndTime = addMinutes(newStartTime, origDuration);
+
+  const dateDisplay = new Date(newDate + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+  });
+
+  return { newDate, newStartTime, newEndTime, newDateDisplay: dateDisplay, newTimeDisplay: formatTime(newStartTime) };
 }
 
 function addMinutes(time, minutes) {
