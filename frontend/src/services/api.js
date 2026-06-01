@@ -28,6 +28,7 @@ export const MeetingAPI = {
   getSummary: (meetings) => api.post('/meetings/summary', { meetings }),
   schedule: (meeting, slot) => api.post('/meetings/schedule', { meeting, slot }),
   list: () => api.get('/meetings'),
+  getRecent: (days = 7) => api.get('/meetings/recent', { params: { days } }),
   cancel: (eventId) => api.delete(`/meetings/${encodeURIComponent(eventId)}`),
   reschedule: (eventId, date, startTime, endTime) =>
     api.patch(`/meetings/${encodeURIComponent(eventId)}/reschedule`, { date, startTime, endTime }),
@@ -52,9 +53,11 @@ export const ZoomAuthAPI = {
 };
 
 export const ContactAPI = {
-  getContacts:   () => api.get('/contacts'),
-  saveContacts:  (contacts) => api.post('/contacts', { contacts }),
-  deleteContact: (email) => api.delete(`/contacts/${encodeURIComponent(email)}`),
+  getContacts:     () => api.get('/contacts'),
+  saveContacts:    (contacts) => api.post('/contacts', { contacts }),
+  deleteContact:   (email) => api.delete(`/contacts/${encodeURIComponent(email)}`),
+  searchGoogle:    (name) => api.get('/contacts/google-search',   { params: { name } }),
+  searchCalendar:  (name) => api.get('/contacts/calendar-search', { params: { name } }),
 };
 
 export const HealthAPI = {

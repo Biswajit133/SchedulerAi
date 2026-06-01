@@ -5,6 +5,7 @@ class GoogleMeetProvider extends MeetingPlatformProvider {
   async createMeeting(meeting, slot, authClient) {
     const event = await CalendarService.createEvent(meeting, slot, authClient, {
       platform: 'google_meet',
+      timeZone: meeting.timeZone || 'UTC',
     });
 
     return {

@@ -1,4 +1,7 @@
 const { isDBConnected } = require('../config/database');
+const { getAuthenticatedClient } = require('../config/googleAuth');
+const GooglePeopleService = require('../services/GooglePeopleService');
+const CalendarService = require('../services/CalendarService');
 const User = require('../models/User');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,21 +63,98 @@ class ContactController {
       // Dedup by email (last entry wins)
       const unique = [...new Map(contacts.map((c) => [c.email.toLowerCase(), c])).values()];
 
+      const user = await User.findOne({ email: userEmail }).select('contacts');
+
       for (const c of unique) {
         const normalizedEmail = c.email.toLowerCase();
-        await User.updateOne(
-          { email: userEmail },
-          { $pull: { contacts: { email: normalizedEmail } } }
+        const existing = user?.contacts?.find(
+          (x) => x.name.toLowerCase().trim() === c.name.toLowerCase().trim()
         );
-        await User.updateOne(
-          { email: userEmail },
-          { $push: { contacts: { name: c.name.trim(), email: normalizedEmail, savedAt: new Date() } } }
-        );
+
+        if (existing) {
+          // Contact exists — update in place, preserving email history
+          const updateFields = {
+            'contacts.$.email':        normalizedEmail,
+            'contacts.$.lastUsedDate': new Date(),
+          };
+          const pushFields = {};
+
+          if (existing.email !== normalizedEmail && !existing.previousEmails?.includes(existing.email)) {
+            pushFields['contacts.$.previousEmails'] = existing.email;
+          }
+
+          await User.updateOne(
+            { email: userEmail, 'contacts._id': existing._id },
+            {
+              $set: updateFields,
+              $inc: { 'contacts.$.meetingCount': 1 },
+              ...(Object.keys(pushFields).length ? { $push: pushFields } : {}),
+            }
+          );
+        } else {
+          // New contact — insert
+          await User.updateOne(
+            { email: userEmail },
+            {
+              $push: {
+                contacts: {
+                  name:         c.name.trim(),
+                  email:        normalizedEmail,
+                  meetingCount: 1,
+                  lastUsedDate: new Date(),
+                  savedAt:      new Date(),
+                },
+              },
+            }
+          );
+        }
       }
 
       res.json({ success: true, saved: unique.length });
     } catch (err) {
       console.error('[saveContacts]', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // GET /api/contacts/calendar-search?name=Harsh
+  async searchCalendar(req, res) {
+    try {
+      const { name } = req.query;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'name query parameter is required' });
+      }
+
+      const authClient = await getAuthenticatedClient(req);
+      if (!authClient) {
+        return res.json({ success: true, contacts: [], reason: 'not_authenticated' });
+      }
+
+      const contacts = await CalendarService.searchAttendees(authClient, name.trim());
+      res.json({ success: true, contacts });
+    } catch (err) {
+      console.error('[searchCalendar]', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // GET /api/contacts/google-search?name=Harsh
+  async searchGoogle(req, res) {
+    try {
+      const { name } = req.query;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'name query parameter is required' });
+      }
+
+      const authClient = await getAuthenticatedClient(req);
+      if (!authClient) {
+        return res.json({ success: true, contacts: [], reason: 'not_authenticated' });
+      }
+
+      const contacts = await GooglePeopleService.searchByName(authClient, name.trim());
+      res.json({ success: true, contacts });
+    } catch (err) {
+      console.error('[searchGoogle]', err);
       res.status(500).json({ error: err.message });
     }
   }

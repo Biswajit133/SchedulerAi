@@ -8,6 +8,7 @@ const uid = () => ++_id;
 const PHASE = {
   IDLE:              'IDLE',
   PICKING:           'PICKING',
+  EMAIL_CONFIRM:     'EMAIL_CONFIRM',     // confirming / collecting participant emails
   MISSING:           'MISSING',
   CONFIRM:           'CONFIRM',
   PLATFORM:          'PLATFORM',
@@ -16,6 +17,8 @@ const PHASE = {
   CANCEL_CONFIRM:    'CANCEL_CONFIRM',    // waiting user to confirm cancellation
   RESCHEDULE_TIME:   'RESCHEDULE_TIME',   // waiting user to provide new time
   RESCHEDULE_CONFIRM:'RESCHEDULE_CONFIRM',// waiting user to confirm reschedule
+  FOLLOW_UP_SELECT:  'FOLLOW_UP_SELECT',  // user selecting / confirming which meeting to follow up on
+  NEEDS_NEW_TIME:    'NEEDS_NEW_TIME',    // active meeting exists but requested time was in the past
 };
 
 const WELCOME = {
@@ -48,6 +51,12 @@ export function useChatFlow() {
     slots: [],
     platform: null,
     pendingAction: null, // { type: 'cancel'|'reschedule', event, newDate?, newTime?, newEndTime? }
+    emailConfirmQueue: [],  // [{ participantName, foundEmails: [{name,email}] }]
+    emailConfirmIdx: 0,
+    emailConfirmResult: {}, // name → chosen email
+    followUpCandidates: [], // recent meetings to follow up on
+    followUpDate: null,     // date parsed from the original follow-up request
+    followUpTime: null,     // time parsed from the original follow-up request
   });
 
   const contacts = useRef([]);
@@ -142,9 +151,15 @@ export function useChatFlow() {
 
     if (phase === PHASE.IDLE || phase === PHASE.DONE) {
       if (phase === PHASE.DONE) resetConv();
+      const followUpHandled = await tryHandleFollowUp(text);
+      if (followUpHandled) return;
       await doExtract(text);
+    } else if (phase === PHASE.FOLLOW_UP_SELECT) {
+      await doFollowUpSelect(text);
     } else if (phase === PHASE.PICKING) {
       await doPick(text);
+    } else if (phase === PHASE.EMAIL_CONFIRM) {
+      await doEmailConfirmAnswer(text);
     } else if (phase === PHASE.MISSING) {
       await doMissingAnswer(text);
     } else if (phase === PHASE.CONFIRM) {
@@ -186,6 +201,8 @@ export function useChatFlow() {
       await doRescheduleTime(text);
     } else if (phase === PHASE.RESCHEDULE_CONFIRM) {
       await doRescheduleConfirm(text);
+    } else if (phase === PHASE.NEEDS_NEW_TIME) {
+      await doHandleNewTime(text);
     }
   }
 
@@ -266,8 +283,23 @@ export function useChatFlow() {
 
   async function proceedWith(meeting) {
     conv.current.active = meeting;
-    const missing = meeting.missingFields || [];
 
+    // Only search MongoDB contacts first — Google is searched lazily on rejection
+    const emailQueue = buildEmailConfirmQueue(meeting, contacts.current);
+    if (emailQueue.length > 0) {
+      conv.current.emailConfirmQueue = emailQueue;
+      conv.current.emailConfirmIdx = 0;
+      conv.current.emailConfirmResult = { ...(meeting.participant_emails || {}) };
+      conv.current.phase = PHASE.EMAIL_CONFIRM;
+      askNextEmailConfirm();
+      return;
+    }
+
+    proceedToMissing(meeting);
+  }
+
+  function proceedToMissing(meeting, overrideMissing) {
+    const missing = overrideMissing !== undefined ? overrideMissing : (meeting.missingFields || []);
     if (missing.length === 0) {
       showConfirmSummary(meeting);
     } else {
@@ -277,6 +309,153 @@ export function useChatFlow() {
       conv.current.phase = PHASE.MISSING;
       askNextMissing();
     }
+  }
+
+  // ── Email confirmation flow ────────────────────────────────────────────────
+
+  function askNextEmailConfirm() {
+    const { emailConfirmQueue, emailConfirmIdx } = conv.current;
+    const item = emailConfirmQueue[emailConfirmIdx];
+    const { participantName, foundEmails, stage = 'mongo' } = item;
+
+    if (foundEmails.length === 0) {
+      pushBot(`I couldn't find an email address for **${participantName}**.\n\nPlease provide their email address.`);
+    } else if (foundEmails.length === 1) {
+      const sourceNote = stage === 'mongo' ? 'your previous meetings' : 'your contacts';
+      pushBot(
+        `I found **${participantName}** (${foundEmails[0].email}) from ${sourceNote}.\n\nWould you like to use this email address?`,
+        { type: 'email-confirm-single', email: foundEmails[0].email, participantName }
+      );
+    } else {
+      const intro = stage === 'google'
+        ? `I found additional email addresses for **${participantName}**:`
+        : `I found multiple email addresses for **${participantName}**:`;
+      const list = foundEmails.map((e, i) => `${i + 1}. ${e.email}`).join('\n');
+      pushBot(
+        `${intro}\n\n${list}\n\nWhich email would you like to use?`,
+        { type: 'email-confirm-multi', emails: foundEmails, participantName }
+      );
+    }
+  }
+
+  async function doEmailConfirmAnswer(text) {
+    const s = conv.current;
+    const item = s.emailConfirmQueue[s.emailConfirmIdx];
+    const { participantName, foundEmails, stage = 'mongo' } = item;
+    const t = text.trim().toLowerCase();
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const YES       = ['yes', 'y', 'use it', 'correct', 'continue', 'invite him', 'invite her', 'ok', 'sure', 'yep', 'yeah'];
+    const NO        = ['no', 'n', 'different email', 'use another', 'not this one', 'other', 'different'];
+    const NONE_WORDS = ['none', 'none of these', 'different', 'other', 'other email'];
+
+    let chosenEmail = null;
+
+    if (foundEmails.length === 0) {
+      if (!EMAIL_RE.test(text.trim())) {
+        pushBot('Please provide a valid email address (e.g., name@example.com).');
+        return;
+      }
+      chosenEmail = text.trim().toLowerCase();
+
+    } else if (foundEmails.length === 1) {
+      if (YES.some((w) => t === w || t.startsWith(w))) {
+        chosenEmail = foundEmails[0].email;
+      } else if (NO.some((w) => t === w || t.startsWith(w))) {
+        if (stage === 'mongo') {
+          await searchGoogleForParticipant(item);
+        } else {
+          s.emailConfirmQueue[s.emailConfirmIdx] = { ...item, foundEmails: [], stage: 'manual' };
+          pushBot(`Please provide the email address you would like to use for **${participantName}**.`);
+        }
+        return;
+      } else if (EMAIL_RE.test(text.trim())) {
+        chosenEmail = text.trim().toLowerCase();
+      } else {
+        pushBot(`Please reply "yes" to use ${foundEmails[0].email}, or "no" to provide a different one.`);
+        return;
+      }
+
+    } else {
+      const num = parseInt(t, 10);
+      if (!isNaN(num) && num >= 1 && num <= foundEmails.length) {
+        chosenEmail = foundEmails[num - 1].email;
+      } else if (NONE_WORDS.some((w) => t.includes(w))) {
+        if (stage === 'mongo') {
+          await searchGoogleForParticipant(item);
+        } else {
+          s.emailConfirmQueue[s.emailConfirmIdx] = { ...item, foundEmails: [], stage: 'manual' };
+          pushBot(`Please provide the email address you would like to use for **${participantName}**.`);
+        }
+        return;
+      } else if (EMAIL_RE.test(text.trim())) {
+        chosenEmail = text.trim().toLowerCase();
+      } else {
+        pushBot(`Please type a number (1–${foundEmails.length}) to select an email, or type a new email address.`);
+        return;
+      }
+    }
+
+    await persistEmailAndAdvance(participantName, chosenEmail);
+  }
+
+  async function searchGoogleForParticipant(item) {
+    const s = conv.current;
+    const { participantName, foundEmails: mongoEmails } = item;
+    const shownEmails = new Set(mongoEmails.map((e) => e.email.toLowerCase()));
+
+    setLoading(true);
+    try {
+      const [calRes, googleRes] = await Promise.all([
+        ContactAPI.searchCalendar(participantName).catch(() => ({ contacts: [] })),
+        ContactAPI.searchGoogle(participantName).catch(() => ({ contacts: [] })),
+      ]);
+
+      const combined = [...(calRes.contacts || []), ...(googleRes.contacts || [])];
+      const seen = new Set();
+      const merged = [];
+      for (const c of combined) {
+        const key = c.email.toLowerCase();
+        if (seen.has(key) || shownEmails.has(key)) continue;
+        seen.add(key);
+        merged.push({ name: c.name || participantName, email: key });
+      }
+
+      if (merged.length > 0) {
+        s.emailConfirmQueue[s.emailConfirmIdx] = { ...item, foundEmails: merged, stage: 'google' };
+        askNextEmailConfirm();
+      } else {
+        s.emailConfirmQueue[s.emailConfirmIdx] = { ...item, foundEmails: [], stage: 'manual' };
+        pushBot(`I couldn't find an email for **${participantName}**.\n\nPlease provide their email address.`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function persistEmailAndAdvance(participantName, chosenEmail) {
+    const s = conv.current;
+    s.emailConfirmResult[participantName] = chosenEmail;
+    try {
+      await ContactAPI.saveContacts([{ name: participantName, email: chosenEmail }]);
+      const refreshed = await ContactAPI.getContacts();
+      contacts.current = refreshed.contacts || [];
+    } catch (_) { /* silent — don't block flow */ }
+
+    s.emailConfirmIdx += 1;
+
+    if (s.emailConfirmIdx < s.emailConfirmQueue.length) {
+      askNextEmailConfirm();
+      return;
+    }
+
+    const updatedMeeting = {
+      ...s.active,
+      participant_emails: { ...s.active.participant_emails, ...s.emailConfirmResult },
+    };
+    s.active = updatedMeeting;
+    const remaining = (updatedMeeting.missingFields || []).filter((f) => f.type !== 'email');
+    proceedToMissing(updatedMeeting, remaining);
   }
 
   function showConfirmSummary(meeting) {
@@ -310,31 +489,37 @@ export function useChatFlow() {
   }
 
   function tryApplyInlineChange(meeting, text) {
-    const t = text.toLowerCase();
+    const t = text.toLowerCase().trim();
     const updated = { ...meeting };
     let changed = false;
 
-    // Time: "change time to 5pm" / "time: 3:30pm"
-    const timeMatch = t.match(/(?:change\s+)?time\s+(?:to\s+)?(.+)/);
+    // Time: "change time to 5pm" / "time: 3:30pm" / bare "3pm" / "3 pm"
+    const timeMatch = t.match(/(?:(?:change\s+)?time\s+(?:to\s+)?|set\s+time\s+(?:to\s+)?)(.+)/)
+      || t.match(/^(\d{1,2}(?::\d{2})?\s*(?:am|pm))$/);
     if (timeMatch) {
-      const { DateParser } = window.__schedulerUtils__ || {};
-      // Use backend-style parsing via the validate endpoint after collection
-      // Store raw string; validate endpoint will parse it
-      updated._pendingTime = timeMatch[1].trim();
-      changed = true;
+      const parsed = parseTimeToHHMM(timeMatch[1].trim());
+      if (parsed) {
+        updated.time = parsed;
+        changed = true;
+      }
     }
 
     // Date: "change date to friday" / "date: tomorrow"
     const dateMatch = t.match(/(?:change\s+)?date\s+(?:to\s+)?(.+)/);
     if (dateMatch) {
-      updated._pendingDate = dateMatch[1].trim();
-      changed = true;
+      const parsed = parseNewDateTime(dateMatch[1].trim(), meeting);
+      if (parsed) {
+        updated.date = parsed.newDate;
+        changed = true;
+      }
     }
 
     // Duration: "change duration to 30 min" / "make it 2 hours"
     const durMatch = t.match(/(?:change\s+)?duration\s+(?:to\s+)?(.+)|make\s+it\s+(.+(?:hour|min|minute))/);
     if (durMatch) {
-      updated._pendingDuration = (durMatch[1] || durMatch[2]).trim();
+      const durStr = (durMatch[1] || durMatch[2]).trim();
+      const mins = parseDurationToMinutes(durStr);
+      updated.duration = mins;
       changed = true;
     }
 
@@ -346,23 +531,6 @@ export function useChatFlow() {
     }
 
     if (!changed) return null;
-
-    // If there are pending raw strings, we need to validate them via the backend.
-    // For now surface them as-is and let validate endpoint resolve them on next submit.
-    // Apply what we can locally:
-    if (updated._pendingTime) {
-      updated.time = updated._pendingTime;
-      delete updated._pendingTime;
-    }
-    if (updated._pendingDate) {
-      updated.date = updated._pendingDate;
-      delete updated._pendingDate;
-    }
-    if (updated._pendingDuration) {
-      updated.duration = updated._pendingDuration;
-      delete updated._pendingDuration;
-    }
-
     return updated;
   }
 
@@ -446,18 +614,30 @@ export function useChatFlow() {
 
   async function doSmartCheck(meeting) {
     try {
-      const res = await MeetingAPI.smartSuggest(meeting.date, meeting.time, meeting.duration);
+      const durationMin = parseDurationToMinutes(meeting.duration);
+
+      // Reject slots that are already in the past
+      const slotDt = new Date(`${meeting.date}T${meeting.time}:00`);
+      if (!isNaN(slotDt.getTime()) && slotDt < new Date()) {
+        pushBot(
+          `**${formatTime(meeting.time)} on ${formatDate(meeting.date)}** is in the past. Please choose a future time.`
+        );
+        conv.current.phase = PHASE.NEEDS_NEW_TIME;
+        return;
+      }
+
+      const res = await MeetingAPI.smartSuggest(meeting.date, meeting.time, durationMin);
 
       if (!res.conflict) {
         // Requested time is free — build a direct slot and show confirm card
-        const endTime = addMinutes(meeting.time, meeting.duration || 60);
+        const endTime = addMinutes(meeting.time, durationMin);
         const slot = {
           date: meeting.date,
           startTime: meeting.time,
           endTime,
           startDisplay: formatTime(meeting.time),
           endDisplay: formatTime(endTime),
-          durationMinutes: meeting.duration || 60,
+          durationMinutes: durationMin,
         };
         conv.current.slots = [slot];
         conv.current.phase = PHASE.SLOTS;
@@ -496,7 +676,18 @@ export function useChatFlow() {
 
   async function doLoadSlots(meeting) {
     try {
-      const res = await MeetingAPI.getSlots(meeting.date, meeting.duration);
+      // Reject dates that are entirely in the past
+      const dateEnd = new Date(`${meeting.date}T23:59:59`);
+      if (!isNaN(dateEnd.getTime()) && dateEnd < new Date()) {
+        pushBot(
+          `**${formatDate(meeting.date)}** is in the past. Please choose a future date.`
+        );
+        conv.current.phase = PHASE.NEEDS_NEW_TIME;
+        return;
+      }
+
+      const durationMin = parseDurationToMinutes(meeting.duration);
+      const res = await MeetingAPI.getSlots(meeting.date, durationMin);
       const slots = res.availableSlots || [];
       conv.current.slots = slots;
       conv.current.phase = PHASE.SLOTS;
@@ -531,6 +722,176 @@ export function useChatFlow() {
     }
   }
 
+  // ── Follow-up meeting flow ─────────────────────────────────────────────────
+
+  async function tryHandleFollowUp(text) {
+    const lower = text.toLowerCase();
+    const isFollowUpIntent =
+      /\bfollow[- ]?up\b/i.test(lower) ||
+      /\b(book|schedule|create|set\s+up)\s+(another|a\s+follow[- ]?up)\b/i.test(lower) ||
+      /\bcontinue\s+(this|the)\s+discussion\b/i.test(lower) ||
+      /\b(another|next)\s+meeting\s+with\s+(the\s+same|them|same\s+attendees?)\b/i.test(lower);
+
+    if (!isFollowUpIntent) return false;
+
+    setLoading(true);
+    let allMeetings = [];
+    try {
+      const res = await MeetingAPI.getRecent(14);
+      allMeetings = res.meetings || [];
+    } catch (e) {
+      pushBot(`Couldn't fetch recent meetings: ${e.message}`);
+      setLoading(false);
+      return true;
+    } finally {
+      setLoading(false);
+    }
+
+    if (allMeetings.length === 0) {
+      pushBot(
+        "I couldn't find any recent meetings to follow up on.\n\n" +
+        'Try scheduling a new meeting instead — just describe it and I\'ll help you set it up.'
+      );
+      return true;
+    }
+
+    // Try to narrow by name mentioned in the request ("follow up with Rehan")
+    const nameMatch = lower.match(/\bwith\s+([a-z][a-z\s]+?)(?:\s+about|\s+on|\s+regarding|\s+next|$)/i);
+    let candidates = allMeetings;
+    if (nameMatch) {
+      const name = nameMatch[1].trim().toLowerCase();
+      const filtered = allMeetings.filter((m) =>
+        m.participants.some((p) => p.toLowerCase().includes(name) || name.includes(p.toLowerCase()))
+      );
+      if (filtered.length > 0) candidates = filtered;
+    }
+
+    // Parse date/time from the original request so startFollowUp can pre-fill them
+    const parsedDT = parseNewDateTime(text, null);
+    conv.current.followUpDate = parsedDT?.newDate || null;
+    conv.current.followUpTime = parsedDT?.newStartTime || null;
+
+    conv.current.followUpCandidates = candidates;
+    conv.current.phase = PHASE.FOLLOW_UP_SELECT;
+
+    if (candidates.length === 1) {
+      const m = candidates[0];
+      const attendeeList = m.participants.length
+        ? m.participants.join(', ')
+        : 'No external attendees';
+      pushBot(
+        `Here's the most recent meeting I found:\n\n` +
+        `  **${m.title}**\n` +
+        `  With: ${attendeeList}\n` +
+        `  Duration: ${m.duration} min\n` +
+        `  Date: ${m.dateDisplay} at ${m.startDisplay}\n\n` +
+        `Would you like to schedule a follow-up for this meeting? Reply "yes" to continue or "no" to cancel.`
+      );
+    } else {
+      const lines = candidates
+        .slice(0, 5)
+        .map((m, i) => `${i + 1}. **${m.title}** — ${m.dateDisplay}${m.participants.length ? ` (with ${m.participants.slice(0, 2).join(', ')}${m.participants.length > 2 ? '...' : ''})` : ''}`);
+      pushBot(
+        `I found ${candidates.length} recent meeting${candidates.length > 1 ? 's' : ''}. Which one would you like to follow up on?\n\n${lines.join('\n')}\n\nType the number or meeting name.`
+      );
+    }
+
+    return true;
+  }
+
+  async function doFollowUpSelect(text) {
+    const t = text.trim().toLowerCase();
+    const candidates = conv.current.followUpCandidates;
+
+    // Single candidate — user is answering yes/no
+    if (candidates.length === 1) {
+      const YES = ['yes', 'y', 'sure', 'ok', 'yep', 'yeah', 'confirm', 'do it'];
+      const NO  = ['no', 'n', 'nope', 'cancel', 'nevermind', 'never mind', 'abort'];
+
+      if (NO.includes(t)) {
+        resetConv();
+        pushBot("No problem! Let me know if you'd like to schedule something else.");
+        return;
+      }
+
+      if (YES.includes(t)) {
+        await startFollowUp(candidates[0]);
+        return;
+      }
+
+      pushBot('Reply "yes" to schedule the follow-up, or "no" to cancel.');
+      return;
+    }
+
+    // Multiple candidates — user is picking one
+    const num = parseInt(t, 10);
+    let picked = null;
+
+    if (!isNaN(num) && num >= 1 && num <= candidates.length) {
+      picked = candidates[num - 1];
+    } else {
+      picked = candidates.find((m) => m.title.toLowerCase().includes(t));
+    }
+
+    if (!picked) {
+      pushBot(`Please type a number (1–${Math.min(candidates.length, 5)}) or the meeting name to select.`);
+      return;
+    }
+
+    // Show details for the picked meeting and ask to confirm
+    conv.current.followUpCandidates = [picked];
+    const attendeeList = picked.participants.length ? picked.participants.join(', ') : 'No external attendees';
+    pushBot(
+      `Here's the meeting I found:\n\n` +
+      `  **${picked.title}**\n` +
+      `  With: ${attendeeList}\n` +
+      `  Duration: ${picked.duration} min\n` +
+      `  Date: ${picked.dateDisplay} at ${picked.startDisplay}\n\n` +
+      `Would you like to schedule a follow-up for this meeting? Reply "yes" to continue or "no" to cancel.`
+    );
+  }
+
+  async function startFollowUp(originalMeeting) {
+    const prefilledMeeting = {
+      meeting_title: `Follow-up: ${originalMeeting.title}`,
+      participants: originalMeeting.participants,
+      participant_emails: originalMeeting.participant_emails,
+      duration: originalMeeting.duration || 60,
+      ...(conv.current.followUpDate ? { date: conv.current.followUpDate } : {}),
+      ...(conv.current.followUpTime ? { time: conv.current.followUpTime } : {}),
+    };
+
+    setLoading(true);
+    try {
+      const res = await MeetingAPI.validate(prefilledMeeting, {});
+      const meeting = res.meeting || prefilledMeeting;
+      const missingFields = res.missingFields || [];
+
+      // Reset to a clean slate then wire up the pre-filled meeting
+      resetConv();
+      conv.current.active = meeting;
+
+      const attendeeDisplay = originalMeeting.participants.join(', ') || 'same attendees';
+      const hasDate = !!prefilledMeeting.date;
+      const hasTime = !!prefilledMeeting.time;
+      const nextStep = hasDate && hasTime
+        ? "I'll confirm the details with you next."
+        : hasDate
+          ? "Just need a time."
+          : "Let's set the date and time.";
+      pushBot(
+        `Starting follow-up for **${originalMeeting.title}** with ${attendeeDisplay}.\n\n${nextStep}`
+      );
+
+      proceedToMissing(meeting, missingFields);
+    } catch (e) {
+      pushBot(`Something went wrong: ${e.message}. Please try again.`);
+      resetConv();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // ── Cancel / Reschedule intent detection ─────────────────────────────────
 
   async function tryHandleCancelReschedule(text) {
@@ -546,7 +907,7 @@ export function useChatFlow() {
 
     // Abandon any in-progress scheduling flow when user switches to cancel/reschedule
     const currentPhase = conv.current.phase;
-    const activeFlowPhases = [PHASE.MISSING, PHASE.CONFIRM, PHASE.PLATFORM, PHASE.SLOTS, PHASE.PICKING];
+    const activeFlowPhases = [PHASE.EMAIL_CONFIRM, PHASE.MISSING, PHASE.CONFIRM, PHASE.PLATFORM, PHASE.SLOTS, PHASE.PICKING];
     if (activeFlowPhases.includes(currentPhase)) {
       resetConv();
     }
@@ -776,6 +1137,32 @@ export function useChatFlow() {
     }
   }
 
+  async function doHandleNewTime(text) {
+    const active = conv.current.active;
+    const parsed = parseNewDateTime(text, active);
+
+    if (!parsed) {
+      pushBot("I couldn't understand that time. Try something like \"4pm\", \"tomorrow 3pm\", or \"Friday at 2:30pm\".");
+      return;
+    }
+
+    const updatedMeeting = {
+      ...active,
+      date: parsed.newDate,
+      time: parsed.newStartTime,
+    };
+    conv.current.active = updatedMeeting;
+
+    setLoading(true);
+    try {
+      await proceedToSlots(updatedMeeting);
+    } catch (e) {
+      pushBot(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function resetConv() {
     conv.current = {
       phase: PHASE.IDLE,
@@ -787,6 +1174,12 @@ export function useChatFlow() {
       slots: [],
       platform: null,
       pendingAction: null,
+      emailConfirmQueue: [],
+      emailConfirmIdx: 0,
+      emailConfirmResult: {},
+      followUpCandidates: [],
+      followUpDate: null,
+      followUpTime: null,
     };
     lastMentionedEvent.current = null;
   }
@@ -800,6 +1193,50 @@ export function useChatFlow() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Finds all contacts that fuzzy-match a participant name (same logic as backend applyContactEmails)
+function findContactsByName(participantName, contactList) {
+  const q = participantName.toLowerCase().trim();
+  return contactList.filter((c) => {
+    const cn = c.name.toLowerCase();
+    const firstWord = cn.split(/\s+/)[0];
+    return (
+      cn === q ||
+      firstWord === q ||
+      cn.includes(q) ||
+      q.includes(firstWord)
+    );
+  });
+}
+
+// Builds the email confirmation queue using only MongoDB contacts.
+// Google Calendar / Google Contacts are searched lazily when the user rejects a MongoDB result.
+function buildEmailConfirmQueue(meeting, contactList) {
+  const participants = meeting.participants || [];
+  if (participants.length === 0) return [];
+
+  const queue = [];
+  for (const name of participants) {
+    const internalMatches = findContactsByName(name, contactList);
+    const alreadyResolved = meeting.participant_emails?.[name];
+
+    const seen = new Set();
+    const deduped = [];
+    for (const c of internalMatches) {
+      const key = c.email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push({ name: c.name, email: key });
+    }
+
+    if (deduped.length > 0) {
+      queue.push({ participantName: name, foundEmails: deduped, stage: 'mongo' });
+    } else if (!alreadyResolved) {
+      queue.push({ participantName: name, foundEmails: [], stage: 'mongo' });
+    }
+  }
+  return queue;
+}
 
 async function tryAnswerCalendarQuestion(text, pushBot, setLoading, onEventMentioned = null) {
   const lower = text.toLowerCase();
@@ -918,9 +1355,26 @@ function tryAnswerQuestion(text, contactList, user, pushBot) {
   return false; // couldn't answer
 }
 
+// Converts a raw time string like "3 pm", "3:30pm", "15:00" to "HH:MM" or null
+function parseTimeToHHMM(raw) {
+  if (!raw) return null;
+  const lower = raw.toLowerCase().trim();
+  const m = lower.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2] || '0', 10);
+  const meridiem = m[3];
+  if (meridiem === 'pm' && h < 12) h += 12;
+  else if (meridiem === 'am' && h === 12) h = 0;
+  else if (!meridiem && h < 7) h += 12; // assume PM for ambiguous small hours
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
 // Parses a new date+time from user text, returns structured object or null
 function parseNewDateTime(text, existingEvent) {
-  const lower = text.toLowerCase();
+  // Normalise ordinal suffixes: "4th june" → "4 june", "1st" → "1"
+  const lower = text.toLowerCase().replace(/\b(\d+)(?:st|nd|rd|th)\b/g, '$1');
 
   // ── Parse date ────────────────────────────────────────────────────────────
   let newDate = null;
@@ -944,6 +1398,26 @@ function parseNewDateTime(text, existingEvent) {
       if (diff <= 0 || dayMatch[1]) diff += 7;
       d.setDate(d.getDate() + diff);
       newDate = d.toISOString().slice(0, 10);
+    } else {
+      // Month-name formats: "june 4", "4 june", "june 4 2026"
+      const MONTH_MAP = {
+        jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,
+        may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,
+        oct:10,october:10,nov:11,november:11,dec:12,december:12,
+      };
+      const mFmt1 = lower.match(/\b([a-z]+)\s+(\d{1,2})(?:[,\s]+(\d{4}))?\b/);
+      const mFmt2 = lower.match(/\b(\d{1,2})\s+([a-z]+)(?:[,\s]+(\d{4}))?\b/);
+      if (mFmt1 && MONTH_MAP[mFmt1[1]]) {
+        const yr = mFmt1[3] ? parseInt(mFmt1[3]) : today.getFullYear();
+        const mo = String(MONTH_MAP[mFmt1[1]]).padStart(2,'0');
+        const dy = String(parseInt(mFmt1[2])).padStart(2,'0');
+        newDate = `${yr}-${mo}-${dy}`;
+      } else if (mFmt2 && MONTH_MAP[mFmt2[2]]) {
+        const yr = mFmt2[3] ? parseInt(mFmt2[3]) : today.getFullYear();
+        const mo = String(MONTH_MAP[mFmt2[2]]).padStart(2,'0');
+        const dy = String(parseInt(mFmt2[1])).padStart(2,'0');
+        newDate = `${yr}-${mo}-${dy}`;
+      }
     }
   }
 
@@ -982,18 +1456,40 @@ function parseNewDateTime(text, existingEvent) {
   return { newDate, newStartTime, newEndTime, newDateDisplay: dateDisplay, newTimeDisplay: formatTime(newStartTime) };
 }
 
+// Converts any duration value to an integer number of minutes.
+// Handles: number (30), string int ("30"), HH:MM string ("00:30"), "1 hour", "1.5 hours".
+function parseDurationToMinutes(duration) {
+  if (duration === null || duration === undefined || duration === '') return 60;
+  if (typeof duration === 'number') return Math.max(1, Math.round(duration));
+  const str = String(duration).trim();
+  if (/^\d{1,2}:\d{2}$/.test(str)) {
+    const [h, m] = str.split(':').map(Number);
+    return h * 60 + m || 60;
+  }
+  const hourMatch = str.match(/(\d+(?:\.\d+)?)\s*h/i);
+  if (hourMatch) return Math.max(1, Math.round(parseFloat(hourMatch[1]) * 60));
+  return parseInt(str, 10) || 60;
+}
+
 function addMinutes(time, minutes) {
-  const [h, m] = time.split(':').map(Number);
-  const total = h * 60 + m + minutes;
+  if (!time) return '00:00';
+  const parts = time.split(':');
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1] || '0', 10) || 0;
+  const mins = parseDurationToMinutes(minutes);
+  const total = h * 60 + m + mins;
   return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
 function formatTime(time) {
   if (!time) return '';
-  const [h, m] = time.split(':').map(Number);
+  const parts = time.split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] || '0', 10);
+  if (isNaN(h)) return time;
   const period = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  return `${h12}:${String(isNaN(m) ? 0 : m).padStart(2, '0')} ${period}`;
 }
 
 function formatDate(iso) {

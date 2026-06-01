@@ -5,13 +5,47 @@ class DateParser {
     return new Date();
   }
 
-  static toISODate(date) {
+  static toISODate(date, timeZone) {
+    if (timeZone) {
+      // en-CA locale formats as YYYY-MM-DD — correct local date in the given timezone
+      return new Intl.DateTimeFormat('en-CA', { timeZone }).format(date);
+    }
     return date.toISOString().split('T')[0];
+  }
+
+  // Convert a local date+time string to a UTC ISO string using the user's timezone.
+  // dateStr: "YYYY-MM-DD", localTime24: "HH:MM", returns Date (UTC).
+  static localToUTC(dateStr, localTime24, timeZone) {
+    if (!localTime24 || !/^\d{1,2}:\d{2}$/.test(localTime24)) {
+      throw new Error(`Invalid time value: "${localTime24}". Expected HH:MM format.`);
+    }
+    if (!timeZone) return new Date(`${dateStr}T${localTime24}:00`);
+
+    // Probe at noon UTC to get a stable timezone offset (avoids DST boundary at midnight)
+    const probeUTC = new Date(`${dateStr}T12:00:00Z`);
+    const offsetMin = DateParser._utcOffsetMinutes(probeUTC, timeZone);
+
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const [h, m] = localTime24.split(':').map(Number);
+    const utcMs = Date.UTC(y, mo - 1, d, 0, 0, 0) + (h * 60 + m - offsetMin) * 60000;
+    return new Date(utcMs);
+  }
+
+  // Returns (local minutes) - (UTC minutes) for the given Date in the given timezone.
+  static _utcOffsetMinutes(date, timeZone) {
+    const fmt = (tz) => new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(date).reduce((acc, p) => ({ ...acc, [p.type]: parseInt(p.value) || 0 }), {});
+
+    const utc   = fmt('UTC');
+    const local = fmt(timeZone);
+    return (local.hour * 60 + local.minute) - (utc.hour * 60 + utc.minute);
   }
 
   static parseRelativeDate(text, referenceDate = new Date()) {
     if (!text) return null;
-    const lower = text.toLowerCase().trim();
+    // Normalise ordinal suffixes: "4th june" → "4 june", "1st" → "1", etc.
+    const lower = text.toLowerCase().trim().replace(/\b(\d+)(?:st|nd|rd|th)\b/g, '$1');
     const ref = new Date(referenceDate);
     ref.setHours(0, 0, 0, 0);
 

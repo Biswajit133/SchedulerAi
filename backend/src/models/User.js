@@ -25,11 +25,15 @@ const userSchema = new mongoose.Schema(
       id:      String,
       picture: String,
     },
+    timezone: { type: String, default: null }, // e.g. "Asia/Kolkata" from Google Calendar
     contacts: [
       {
-        name:    { type: String, required: true, trim: true },
-        email:   { type: String, required: true, lowercase: true, trim: true },
-        savedAt: { type: Date, default: Date.now },
+        name:           { type: String, required: true, trim: true },
+        email:          { type: String, required: true, lowercase: true, trim: true },
+        previousEmails: [{ type: String, lowercase: true }],
+        meetingCount:   { type: Number, default: 0 },
+        lastUsedDate:   { type: Date, default: null },
+        savedAt:        { type: Date, default: Date.now },
       },
     ],
   },

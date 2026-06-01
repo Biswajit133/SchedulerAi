@@ -7,6 +7,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/contacts.readonly',
 ];
 
 function createOAuth2Client() {
@@ -53,10 +54,21 @@ async function exchangeCode(code, req) {
     client.setCredentials(tokens);
     const oauth2 = google.oauth2({ version: 'v2', auth: client });
     const { data } = await oauth2.userinfo.get();
+    // Fetch the user's timezone from their Google Calendar settings
+    let calTimezone = null;
+    try {
+      const cal = google.calendar({ version: 'v3', auth: client });
+      const tzRes = await cal.settings.get({ setting: 'timezone' });
+      calTimezone = tzRes.data.value || null; // e.g. "Asia/Kolkata"
+    } catch (err) {
+      console.warn('[googleAuth] Could not fetch calendar timezone:', err.message);
+    }
+
     req.session.user = {
       email: data.email,
       name: data.name,
       picture: data.picture,
+      timezone: calTimezone,
     };
 
     // Persist to MongoDB
@@ -70,9 +82,11 @@ async function exchangeCode(code, req) {
             tokensToSave = { ...tokens, refresh_token: existing.googleTokens.refresh_token };
           }
         }
+        const dbUpdate = { name: data.name, picture: data.picture, googleTokens: tokensToSave };
+        if (calTimezone) dbUpdate.timezone = calTimezone;
         await User.findOneAndUpdate(
           { email: data.email.toLowerCase() },
-          { $set: { name: data.name, picture: data.picture, googleTokens: tokensToSave } },
+          { $set: dbUpdate },
           { upsert: true }
         );
         console.log('[googleAuth] User upserted in DB:', data.email);

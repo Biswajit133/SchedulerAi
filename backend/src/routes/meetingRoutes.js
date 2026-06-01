@@ -12,6 +12,7 @@ router.get('/meetings/slots', controller.getSlots.bind(controller));
 router.get('/meetings/suggest', controller.smartSuggest.bind(controller));
 router.post('/meetings/summary', controller.getMeetingSummary.bind(controller));
 router.post('/meetings/schedule', validateSchedule, controller.schedule.bind(controller));
+router.get('/meetings/recent', controller.getRecentMeetings.bind(controller));
 router.delete('/meetings/:eventId', controller.cancelMeeting.bind(controller));
 router.patch('/meetings/:eventId/reschedule', controller.rescheduleMeeting.bind(controller));
 router.get('/meetings', controller.list.bind(controller));
@@ -34,9 +35,11 @@ router.get('/auth/zoom/status', controller.zoomStatus.bind(controller));
 router.post('/auth/zoom/disconnect', controller.zoomDisconnect.bind(controller));
 
 // Contacts
-router.get('/contacts',           contactController.getContacts.bind(contactController));
-router.post('/contacts',          contactController.saveContacts.bind(contactController));
-router.delete('/contacts/:email', contactController.deleteContact.bind(contactController));
+router.get('/contacts/calendar-search', contactController.searchCalendar.bind(contactController));
+router.get('/contacts/google-search',   contactController.searchGoogle.bind(contactController));
+router.get('/contacts',               contactController.getContacts.bind(contactController));
+router.post('/contacts',              contactController.saveContacts.bind(contactController));
+router.delete('/contacts/:email',     contactController.deleteContact.bind(contactController));
 
 // Health
 router.get('/health', (req, res) => {

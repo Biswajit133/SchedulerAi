@@ -8,7 +8,8 @@ class ZoomProvider extends MeetingPlatformProvider {
       throw new Error('Zoom is not connected. Please connect your Zoom account first.');
     }
 
-    const zoomMeeting = await this._createZoomMeeting(zoomAccessToken, meeting, slot);
+    const timeZone = meeting.timeZone || 'UTC';
+    const zoomMeeting = await this._createZoomMeeting(zoomAccessToken, meeting, slot, timeZone);
 
     const joinUrl = zoomMeeting.join_url;
     const platformMeetingId = String(zoomMeeting.id);
@@ -18,6 +19,7 @@ class ZoomProvider extends MeetingPlatformProvider {
       platform: 'zoom',
       meetingLink: joinUrl,
       platformMeetingId,
+      timeZone,
     });
 
     return {
@@ -31,15 +33,16 @@ class ZoomProvider extends MeetingPlatformProvider {
     };
   }
 
-  _createZoomMeeting(token, meeting, slot) {
-    const startDateTime = new Date(`${slot.date}T${slot.startTime}:00`).toISOString();
+  _createZoomMeeting(token, meeting, slot, timeZone = 'UTC') {
+    const DateParser = require('../utils/DateParser');
+    const startDateTime = DateParser.localToUTC(slot.date, slot.startTime, timeZone).toISOString();
 
     const body = JSON.stringify({
       topic: meeting.meeting_title,
       type: 2,
       start_time: startDateTime,
       duration: slot.durationMinutes || 60,
-      timezone: process.env.TIMEZONE || 'UTC',
+      timezone: timeZone,
       agenda: meeting.task || '',
       settings: {
         host_video: true,

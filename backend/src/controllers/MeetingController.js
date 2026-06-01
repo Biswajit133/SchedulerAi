@@ -128,6 +128,7 @@ class MeetingController {
       const meetingWithPlatform = {
         ...meeting,
         platform: meeting.platform || 'google_meet',
+        timeZone: req.session?.user?.timezone || 'UTC',
       };
 
       const authClient = await this._auth(req);
@@ -191,6 +192,29 @@ class MeetingController {
     }
   }
 
+  // GET /api/meetings/recent?days=7
+  async getRecentMeetings(req, res) {
+    try {
+      const days = parseInt(req.query.days) || 7;
+      const authClient = await this._auth(req);
+
+      let timeZone = req.session?.user?.timezone || null;
+      if (!timeZone && req.session?.user?.email && isDBConnected()) {
+        try {
+          const dbUser = await User.findOne({ email: req.session.user.email.toLowerCase() })
+            .select('timezone').lean();
+          timeZone = dbUser?.timezone || null;
+        } catch (_) {}
+      }
+
+      const result = await CalendarService.getRecentMeetings(authClient, timeZone, days);
+      res.json({ success: true, ...result });
+    } catch (err) {
+      console.error('[recentMeetings]', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   // GET /api/meetings
   async list(req, res) {
     try {
@@ -206,7 +230,19 @@ class MeetingController {
     try {
       const { date } = req.query;
       const authClient = await this._auth(req);
-      const agenda = await AgendaService.getAgenda(date || null, authClient);
+
+      // Resolve timezone: session → DB → null (falls back to UTC in services)
+      let timeZone = req.session?.user?.timezone || null;
+      if (!timeZone && req.session?.user?.email && isDBConnected()) {
+        try {
+          const dbUser = await User.findOne({ email: req.session.user.email.toLowerCase() })
+            .select('timezone').lean();
+          timeZone = dbUser?.timezone || null;
+          if (timeZone && req.session.user) req.session.user.timezone = timeZone;
+        } catch (_) {}
+      }
+
+      const agenda = await AgendaService.getAgenda(date || null, authClient, timeZone);
       res.json({ success: true, ...agenda });
     } catch (err) {
       console.error('[agenda]', err);
@@ -304,6 +340,18 @@ class MeetingController {
       return res.json({ authenticated: false, user: null });
     }
     const user = getSessionUser(req);
+
+    // Backfill timezone from DB if session pre-dates the timezone feature
+    if (!user?.timezone && user?.email && isDBConnected()) {
+      try {
+        const dbUser = await User.findOne({ email: user.email.toLowerCase() }).select('timezone').lean();
+        if (dbUser?.timezone) {
+          user.timezone = dbUser.timezone;
+          req.session.user = { ...req.session.user, timezone: dbUser.timezone };
+        }
+      } catch (_) {}
+    }
+
     res.json({ authenticated: true, user });
   }
 

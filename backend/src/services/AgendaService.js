@@ -6,13 +6,14 @@ const WORK_START = 7 * 60;   // 7:00 AM
 const WORK_END   = 22 * 60;  // 10:00 PM
 
 class AgendaService {
-  async getTodayAgenda(authClient) {
-    return this.getAgenda(DateParser.toISODate(new Date()), authClient);
+  async getTodayAgenda(authClient, timeZone) {
+    const today = DateParser.toISODate(new Date(), timeZone || null);
+    return this.getAgenda(today, authClient, timeZone);
   }
 
-  async getAgenda(date, authClient) {
-    const target = date || DateParser.toISODate(new Date());
-    const { busySlots, demo } = await this._getBusySlots(target, authClient);
+  async getAgenda(date, authClient, timeZone) {
+    const target = date || DateParser.toISODate(new Date(), timeZone || null);
+    const { busySlots, demo } = await this._getBusySlots(target, authClient, timeZone);
     const freeSlots = this._toFreeRanges(busySlots, target);
 
     return {
@@ -25,9 +26,9 @@ class AgendaService {
     };
   }
 
-  async _getBusySlots(date, authClient) {
+  async _getBusySlots(date, authClient, timeZone) {
     try {
-      const result = await CalendarService.getEvents(date, authClient);
+      const result = await CalendarService.getEvents(date, authClient, timeZone);
       return { busySlots: result.busySlots || [], demo: result.demo };
     } catch {
       return { busySlots: SlotFinder.getMockBusySlots(date), demo: true };
