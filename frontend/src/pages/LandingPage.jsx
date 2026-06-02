@@ -163,7 +163,7 @@ export default function LandingPage() {
           <p className="text-slate-400 text-center mb-12">
             No more back-and-forth emails. No more calendar juggling.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
                 icon: '🤖',
@@ -180,11 +180,78 @@ export default function LandingPage() {
                 title: 'Automatic Invites',
                 desc: 'Sends Google Calendar invites to all participants the moment you confirm.',
               },
+              {
+                icon: '⚡',
+                title: 'Smart Conflict Resolution',
+                desc: 'If your requested slot is taken, AI instantly finds the nearest free alternatives and lets you pick.',
+              },
+              {
+                icon: '🚨',
+                title: 'Priority Detection',
+                desc: 'Say "urgent" or "critical" and SchedulerAI auto-tags the meeting as high-priority — no extra steps.',
+              },
+              {
+                icon: '📝',
+                title: 'AI Meeting Summaries',
+                desc: 'Get AI-generated summaries, action items, and decisions for any meeting with one click.',
+              },
             ].map(({ icon, title, desc }) => (
               <div key={title} className="card text-center">
                 <div className="text-4xl mb-4">{icon}</div>
                 <h3 className="text-white font-semibold mb-2">{title}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Integrations bar ── */}
+      <section className="px-6 pb-16">
+        <div className="max-w-4xl mx-auto">
+          <p className="text-center text-slate-500 text-xs uppercase tracking-widest mb-8 font-semibold">
+            Works with your existing tools
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Google Calendar', sub: 'Reads & writes your calendar', icon: '📆' },
+              { label: 'Google Meet', sub: 'Auto-creates meeting links', icon: '🎥' },
+              { label: 'Zoom', sub: 'Schedule Zoom calls natively', icon: '🔵' },
+              { label: 'Google Contacts', sub: 'Searches your people directory', icon: '👥' },
+            ].map(({ label, sub, icon }) => (
+              <div key={label} className="flex flex-col items-center text-center p-4 rounded-2xl
+                border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+                <span className="text-3xl mb-2">{icon}</span>
+                <p className="text-white text-sm font-semibold">{label}</p>
+                <p className="text-slate-500 text-xs mt-1 leading-snug">{sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── More capabilities ── */}
+      <section className="px-6 pb-20">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-white text-center mb-10">
+            More capabilities built in
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { icon: '🗓️', title: 'Reschedule & Cancel', desc: 'Move or cancel existing meetings with a single message.' },
+              { icon: '🕐', title: 'Natural Language Dates', desc: '"Next Friday afternoon" or "tomorrow at 3" — understood instantly.' },
+              { icon: '📋', title: 'Paste Raw Notes', desc: 'Drop unformatted meeting notes and AI extracts all the details.' },
+              { icon: '📊', title: 'Today\'s Agenda', desc: 'See your full day at a glance with priorities and meeting links.' },
+              { icon: '🧠', title: 'Multi-AI Provider', desc: 'Powered by Claude, Gemini, Groq, or OpenAI — switch any time.' },
+              { icon: '👤', title: 'Saved Contacts', desc: 'Remembers your frequent collaborators so you never retype emails.' },
+            ].map(({ icon, title, desc }) => (
+              <div key={title} className="flex items-start gap-4 p-4 rounded-2xl border
+                border-slate-800 bg-slate-900/30 hover:border-slate-700 transition-colors">
+                <span className="text-2xl shrink-0 mt-0.5">{icon}</span>
+                <div>
+                  <p className="text-white font-semibold text-sm mb-1">{title}</p>
+                  <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+                </div>
               </div>
             ))}
           </div>

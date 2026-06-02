@@ -766,9 +766,10 @@ export function useChatFlow() {
       if (filtered.length > 0) candidates = filtered;
     }
 
-    // Parse date/time from the original request so startFollowUp can pre-fill them
+    // Parse date/time from the original request so startFollowUp can pre-fill them.
+    // parseNewDateTime requires a time — fall back to date-only parse when no time is given.
     const parsedDT = parseNewDateTime(text, null);
-    conv.current.followUpDate = parsedDT?.newDate || null;
+    conv.current.followUpDate = parsedDT?.newDate || parseDateOnlyFromText(text) || null;
     conv.current.followUpTime = parsedDT?.newStartTime || null;
 
     conv.current.followUpCandidates = candidates;
@@ -1241,9 +1242,11 @@ function buildEmailConfirmQueue(meeting, contactList) {
 async function tryAnswerCalendarQuestion(text, pushBot, setLoading, onEventMentioned = null) {
   const lower = text.toLowerCase();
 
-  // Don't intercept scheduling requests — they just happen to contain "meeting" and "today"
+  // Don't intercept scheduling or follow-up requests — they happen to contain "meeting" and "today"
   const isSchedulingRequest = /\b(schedule|book|create|set\s+up|plan|arrange|add|make)\b/i.test(lower);
   if (isSchedulingRequest) return false;
+  const isFollowUpRequest = /\bfollow[- ]?up\b/i.test(lower);
+  if (isFollowUpRequest) return false;
 
   const isNextMeeting = /next\s+meeting|upcoming\s+meeting|what.*my.*meeting|my.*next\s+meeting/i.test(lower);
   const isTodayMeetings =
@@ -1355,6 +1358,54 @@ function tryAnswerQuestion(text, contactList, user, pushBot) {
   return false; // couldn't answer
 }
 
+// Returns YYYY-MM-DD using local date parts (avoids UTC off-by-one in non-UTC timezones)
+function localISODate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Extracts only a date from free-form text (no time required). Returns YYYY-MM-DD or null.
+function parseDateOnlyFromText(text) {
+  const lower = text.toLowerCase().replace(/\b(\d+)(?:st|nd|rd|th)\b/g, '$1');
+  const today = new Date();
+
+  if (/\btomorrow\b/.test(lower)) {
+    const d = new Date(today); d.setDate(d.getDate() + 1); return localISODate(d);
+  }
+  if (/\btoday\b/.test(lower)) return localISODate(today);
+  if (/\bnext\s+week\b/.test(lower)) {
+    const d = new Date(today); d.setDate(d.getDate() + 7); return localISODate(d);
+  }
+  const DAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const dayMatch = lower.match(/\b(next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
+  if (dayMatch) {
+    const targetDay = DAYS.indexOf(dayMatch[2]);
+    const d = new Date(today);
+    let diff = targetDay - d.getDay();
+    if (diff <= 0 || dayMatch[1]) diff += 7;
+    d.setDate(d.getDate() + diff);
+    return localISODate(d);
+  }
+  const MONTH_MAP = {
+    jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,
+    may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,
+    oct:10,october:10,nov:11,november:11,dec:12,december:12,
+  };
+  const mFmt1 = lower.match(/\b([a-z]+)\s+(\d{1,2})(?:[,\s]+(\d{4}))?\b/);
+  if (mFmt1 && MONTH_MAP[mFmt1[1]]) {
+    const yr = mFmt1[3] ? parseInt(mFmt1[3]) : today.getFullYear();
+    return `${yr}-${String(MONTH_MAP[mFmt1[1]]).padStart(2,'0')}-${String(parseInt(mFmt1[2])).padStart(2,'0')}`;
+  }
+  const mFmt2 = lower.match(/\b(\d{1,2})\s+([a-z]+)(?:[,\s]+(\d{4}))?\b/);
+  if (mFmt2 && MONTH_MAP[mFmt2[2]]) {
+    const yr = mFmt2[3] ? parseInt(mFmt2[3]) : today.getFullYear();
+    return `${yr}-${String(MONTH_MAP[mFmt2[2]]).padStart(2,'0')}-${String(parseInt(mFmt2[1])).padStart(2,'0')}`;
+  }
+  return null;
+}
+
 // Converts a raw time string like "3 pm", "3:30pm", "15:00" to "HH:MM" or null
 function parseTimeToHHMM(raw) {
   if (!raw) return null;
@@ -1382,12 +1433,12 @@ function parseNewDateTime(text, existingEvent) {
 
   if (/\btomorrow\b/.test(lower)) {
     const d = new Date(today); d.setDate(d.getDate() + 1);
-    newDate = d.toISOString().slice(0, 10);
+    newDate = localISODate(d);
   } else if (/\btoday\b/.test(lower)) {
-    newDate = today.toISOString().slice(0, 10);
+    newDate = localISODate(today);
   } else if (/\bnext\s+week\b/.test(lower)) {
     const d = new Date(today); d.setDate(d.getDate() + 7);
-    newDate = d.toISOString().slice(0, 10);
+    newDate = localISODate(d);
   } else {
     const DAYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     const dayMatch = lower.match(/\b(next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
@@ -1397,7 +1448,7 @@ function parseNewDateTime(text, existingEvent) {
       let diff = targetDay - d.getDay();
       if (diff <= 0 || dayMatch[1]) diff += 7;
       d.setDate(d.getDate() + diff);
-      newDate = d.toISOString().slice(0, 10);
+      newDate = localISODate(d);
     } else {
       // Month-name formats: "june 4", "4 june", "june 4 2026"
       const MONTH_MAP = {
@@ -1437,7 +1488,7 @@ function parseNewDateTime(text, existingEvent) {
   if (!newStartTime) return null;
 
   // Use same date as existing event if no new date parsed
-  if (!newDate) newDate = existingEvent?.date || today.toISOString().slice(0, 10);
+  if (!newDate) newDate = existingEvent?.date || localISODate(today);
 
   // Preserve original duration
   const origDuration = (() => {

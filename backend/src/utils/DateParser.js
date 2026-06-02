@@ -10,7 +10,11 @@ class DateParser {
       // en-CA locale formats as YYYY-MM-DD — correct local date in the given timezone
       return new Intl.DateTimeFormat('en-CA', { timeZone }).format(date);
     }
-    return date.toISOString().split('T')[0];
+    // Use local date parts to avoid UTC off-by-one in non-UTC timezones
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   // Convert a local date+time string to a UTC ISO string using the user's timezone.
