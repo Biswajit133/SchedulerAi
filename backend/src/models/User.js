@@ -25,6 +25,57 @@ const userSchema = new mongoose.Schema(
       id:      String,
       picture: String,
     },
+    // Placeholder token fields for future calendar/meeting providers.
+    // Populated once their OAuth flows are implemented.
+    outlookTokens: {
+      access_token:  String,
+      refresh_token: String,
+      expiry_date:   Number,
+      token_type:    String,
+      scope:         String,
+    },
+    outlookUser: {
+      email: String,
+      name:  String,
+      id:    String,
+    },
+    teamsTokens: {
+      access_token:  String,
+      refresh_token: String,
+      expiry_date:   Number,
+      token_type:    String,
+      scope:         String,
+    },
+    teamsUser: {
+      email: String,
+      name:  String,
+      id:    String,
+    },
+    microsoftTokens: {
+      access_token:  String,
+      refresh_token: String,
+      expiry_date:   Number,
+      token_type:    String,
+      scope:         String,
+    },
+    webexTokens: {
+      access_token:  String,
+      refresh_token: String,
+      expiry_date:   Number,
+      token_type:    String,
+      scope:         String,
+    },
+    appleTokens: {
+      access_token:  String,
+      refresh_token: String,
+      expiry_date:   Number,
+    },
+    preferences: {
+      defaultCalendarProvider: { type: String, default: null }, // e.g. 'google', 'outlook'
+      defaultMeetingProvider:  { type: String, default: null }, // e.g. 'google_meet', 'zoom'
+      preferredDuration:       { type: Number, default: null }, // minutes
+      preferredTimezone:       { type: String, default: null },
+    },
     timezone: { type: String, default: null }, // e.g. "Asia/Kolkata" from Google Calendar
     contacts: [
       {

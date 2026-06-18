@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MeetingAPI, AgendaAPI, ContactAPI, AuthAPI } from '../services/api';
+import { MeetingAPI, AgendaAPI, ContactAPI, AuthAPI, IntegrationAPI } from '../services/api';
 
 let _id = 0;
 const uid = () => ++_id;
@@ -51,6 +51,7 @@ export function useChatFlow() {
     slots: [],
     platform: null,
     pendingAction: null, // { type: 'cancel'|'reschedule', event, newDate?, newTime?, newEndTime? }
+    pendingSlot: null,   // slot waiting for email collection before scheduling
     emailConfirmQueue: [],  // [{ participantName, foundEmails: [{name,email}] }]
     emailConfirmIdx: 0,
     emailConfirmResult: {}, // name → chosen email
@@ -151,6 +152,8 @@ export function useChatFlow() {
 
     if (phase === PHASE.IDLE || phase === PHASE.DONE) {
       if (phase === PHASE.DONE) resetConv();
+      const prefHandled = await tryHandleProviderPreference(text);
+      if (prefHandled) return;
       const followUpHandled = await tryHandleFollowUp(text);
       if (followUpHandled) return;
       await doExtract(text);
@@ -165,14 +168,12 @@ export function useChatFlow() {
     } else if (phase === PHASE.CONFIRM) {
       await doConfirmAnswer(text);
     } else if (phase === PHASE.PLATFORM) {
-      // Accept typed platform choice as well as button clicks
-      const t = text.trim().toLowerCase();
-      if (t.includes('zoom')) {
-        await selectPlatformInternal('zoom');
-      } else if (t.includes('google') || t.includes('meet')) {
-        await selectPlatformInternal('google_meet');
+      // Match typed provider name against connected providers
+      const matched = await resolveProviderFromText(text.trim());
+      if (matched) {
+        await selectPlatformInternal(matched.id, matched.label);
       } else {
-        pushBot('Please choose a platform: type "Google Meet" or "Zoom", or tap one of the buttons above.');
+        pushBot('Please choose a platform from the options above, or type its name (e.g. "Zoom", "Google Meet").');
       }
     } else if (phase === PHASE.SLOTS) {
       const slots = conv.current.slots;
@@ -181,14 +182,14 @@ export function useChatFlow() {
       // "confirm" / "yes" / "ok" / "sure" → auto-confirm if exactly one slot
       const isConfirmWord = ['confirm', 'yes', 'ok', 'sure', 'schedule it', 'do it', 'book it', 'y'].includes(t);
       if (isConfirmWord && slots.length === 1) {
-        await doSchedule(slots[0]);
+        await proceedToSchedule(slots[0]);
         return;
       }
 
       // Numeric selection
       const num = parseInt(t, 10);
       if (!isNaN(num) && num >= 1 && num <= slots.length) {
-        await doSchedule(slots[num - 1]);
+        await proceedToSchedule(slots[num - 1]);
       } else {
         const hint = slots.length === 1
           ? 'Type "confirm" or tap the button above to schedule it.'
@@ -211,21 +212,23 @@ export function useChatFlow() {
   async function selectSlot(slot) {
     if (loading) return;
     pushUser(`${slot.startDisplay} – ${slot.endDisplay}`);
-    await doSchedule(slot);
+    await proceedToSchedule(slot);
   }
 
-  // ── Public: platform button click ─────────────────────────────────────────
+  // ── Public: platform button click (platformId, platformLabel) ────────────
 
-  async function selectPlatform(platform) {
+  async function selectPlatform(platformId, platformLabel) {
     if (loading) return;
-    const label = platform === 'zoom' ? 'Zoom' : 'Google Meet';
-    pushUser(label);
-    await selectPlatformInternal(platform);
+    pushUser(platformLabel || platformId);
+    await selectPlatformInternal(platformId, platformLabel);
   }
 
   // ── Phase handlers ─────────────────────────────────────────────────────────
 
   async function doExtract(text) {
+    // Capture any explicit provider request before sending to AI
+    const requestedProvider = detectRequestedProvider(text);
+
     setLoading(true);
     try {
       const res = await MeetingAPI.extract(text);
@@ -240,14 +243,20 @@ export function useChatFlow() {
         return;
       }
 
-      if (meetings.length > 1) {
+      // Attach the requested provider so doPlatformSelection can honour it
+      const enriched = meetings.map((m) =>
+        requestedProvider ? { ...m, _requestedProvider: requestedProvider } : m
+      );
+      conv.current.meetings = enriched;
+
+      if (enriched.length > 1) {
         conv.current.phase = PHASE.PICKING;
         pushBot(
-          `I found ${meetings.length} meetings. Which one would you like to schedule first?`,
-          { type: 'meeting-list', meetings }
+          `I found ${enriched.length} meetings. Which one would you like to schedule first?`,
+          { type: 'meeting-list', meetings: enriched }
         );
       } else {
-        await proceedWith(meetings[0]);
+        await proceedWith(enriched[0]);
       }
     } catch (e) {
       pushBot(`Something went wrong: ${e.message}. Please try again.`);
@@ -282,24 +291,18 @@ export function useChatFlow() {
   }
 
   async function proceedWith(meeting) {
-    conv.current.active = meeting;
-
-    // Only search MongoDB contacts first — Google is searched lazily on rejection
-    const emailQueue = buildEmailConfirmQueue(meeting, contacts.current);
-    if (emailQueue.length > 0) {
-      conv.current.emailConfirmQueue = emailQueue;
-      conv.current.emailConfirmIdx = 0;
-      conv.current.emailConfirmResult = { ...(meeting.participant_emails || {}) };
-      conv.current.phase = PHASE.EMAIL_CONFIRM;
-      askNextEmailConfirm();
-      return;
-    }
-
-    proceedToMissing(meeting);
+    // Silently pre-fill emails from local contact cache so the MISSING phase
+    // never asks for an email that is already known.
+    const enriched = enrichEmailsFromContacts(meeting, contacts.current);
+    conv.current.active = enriched;
+    proceedToMissing(enriched);
   }
 
   function proceedToMissing(meeting, overrideMissing) {
-    const missing = overrideMissing !== undefined ? overrideMissing : (meeting.missingFields || []);
+    const allMissing = overrideMissing !== undefined ? overrideMissing : (meeting.missingFields || []);
+    // Email fields are deferred to after slot selection (handled by proceedToSchedule).
+    // Never ask for email before the user has confirmed an available time slot.
+    const missing = allMissing.filter((f) => f.type !== 'email');
     if (missing.length === 0) {
       showConfirmSummary(meeting);
     } else {
@@ -319,6 +322,11 @@ export function useChatFlow() {
     const { participantName, foundEmails, stage = 'mongo' } = item;
 
     if (foundEmails.length === 0) {
+      if (stage === 'mongo') {
+        // No local contacts found — search Google Calendar + People before asking
+        searchGoogleForParticipant(item);
+        return;
+      }
       pushBot(`I couldn't find an email address for **${participantName}**.\n\nPlease provide their email address.`);
     } else if (foundEmails.length === 1) {
       const sourceNote = stage === 'mongo' ? 'your previous meetings' : 'your contacts';
@@ -454,6 +462,15 @@ export function useChatFlow() {
       participant_emails: { ...s.active.participant_emails, ...s.emailConfirmResult },
     };
     s.active = updatedMeeting;
+
+    // If we were collecting emails after slot selection, proceed directly to scheduling
+    if (s.pendingSlot) {
+      const slot = s.pendingSlot;
+      s.pendingSlot = null;
+      await doSchedule(slot);
+      return;
+    }
+
     const remaining = (updatedMeeting.missingFields || []).filter((f) => f.type !== 'email');
     proceedToMissing(updatedMeeting, remaining);
   }
@@ -547,6 +564,15 @@ export function useChatFlow() {
     s.answers = { ...s.answers, [field.field]: text };
     s.missingIdx += 1;
 
+    // Try to extract answers for remaining missing fields from the same text
+    while (s.missingIdx < s.missing.length) {
+      const nextField = s.missing[s.missingIdx];
+      const extracted = extractFieldFromText(text, nextField.type || nextField.field);
+      if (extracted === null) break;
+      s.answers = { ...s.answers, [nextField.field]: extracted };
+      s.missingIdx += 1;
+    }
+
     if (s.missingIdx < s.missing.length) {
       askNextMissing();
       return;
@@ -576,22 +602,78 @@ export function useChatFlow() {
 
   // ── Platform selection ─────────────────────────────────────────────────────
 
-  function doPlatformSelection(meeting) {
+  async function doPlatformSelection(meeting) {
     conv.current.active = meeting;
     conv.current.phase = PHASE.PLATFORM;
     conv.current.platform = null;
+
+    // Fetch the user's connected meeting providers
+    setLoading(true);
+    let connectedProviders = [];
+    let defaultProvider = null;
+    try {
+      const res = await IntegrationAPI.getConnected();
+      connectedProviders = (res.meetingProviders || []).filter((p) => p.connected);
+      defaultProvider = res.defaultMeetingProvider || null;
+    } catch (_) {
+      // API unavailable — assume Google Meet via Google Calendar
+      connectedProviders = [{ id: 'google_meet', label: 'Google Meet', description: 'Free, built into Google Calendar', connected: true }];
+    } finally {
+      setLoading(false);
+    }
+
+    if (connectedProviders.length === 0) {
+      pushBot(
+        'No meeting providers are connected.\n\n' +
+        'Please connect Google Calendar, Zoom, or another supported provider from the Integrations settings.'
+      );
+      conv.current.phase = PHASE.IDLE;
+      return;
+    }
+
+    // User explicitly requested a specific provider (e.g. "use Zoom")
+    const requestedProvider = meeting._requestedProvider || null;
+    if (requestedProvider) {
+      const match = connectedProviders.find((p) => p.id === requestedProvider);
+      if (match) {
+        await selectPlatformInternal(match.id, match.label);
+        return;
+      }
+      const providerMeta = connectedProviders.find((p) => p.id === requestedProvider) ||
+        { label: requestedProvider };
+      pushBot(
+        `I couldn't find a connected ${providerMeta.label || requestedProvider} account.\n\n` +
+        `Would you like to connect it, or use your default provider instead?`,
+        {
+          type: 'platform-selection',
+          platforms: connectedProviders,
+          connectHint: requestedProvider,
+        }
+      );
+      return;
+    }
+
+    // Auto-select only when there is exactly one connected provider
+    if (connectedProviders.length === 1) {
+      const p = connectedProviders[0];
+      pushBot(`Using ${p.label} for this meeting.`);
+      await selectPlatformInternal(p.id, p.label);
+      return;
+    }
+
+    // Multiple providers → always ask the user; highlight the default if one is saved
     pushBot(
-      'Which meeting platform would you prefer?',
-      { type: 'platform-selection' }
+      `Which platform would you like to use for this meeting?`,
+      { type: 'platform-selection', platforms: connectedProviders, defaultProvider }
     );
   }
 
-  async function selectPlatformInternal(platform) {
-    conv.current.platform = platform;
-    const meeting = { ...conv.current.active, platform };
+  async function selectPlatformInternal(platformId, platformLabel) {
+    conv.current.platform = platformId;
+    const meeting = { ...conv.current.active, platform: platformId };
     conv.current.active = meeting;
 
-    const label = platform === 'zoom' ? 'Zoom' : 'Google Meet';
+    const label = platformLabel || platformId;
     pushBot(`${label} selected. Checking calendar availability...`);
 
     setLoading(true);
@@ -671,7 +753,7 @@ export function useChatFlow() {
   async function confirmDirect(slot) {
     if (loading) return;
     pushUser(`Confirm ${slot.startDisplay} – ${slot.endDisplay}`);
-    await doSchedule(slot);
+    await proceedToSchedule(slot);
   }
 
   async function doLoadSlots(meeting) {
@@ -708,18 +790,82 @@ export function useChatFlow() {
     }
   }
 
+  // Collects any missing participant emails THEN schedules. This runs after slot
+  // selection so we never ask for emails when the time slot might not be available.
+  async function proceedToSchedule(slot) {
+    const meeting = conv.current.active;
+    const emailQueue = buildEmailConfirmQueue(meeting, contacts.current);
+    if (emailQueue.length > 0) {
+      conv.current.pendingSlot = slot;
+      conv.current.emailConfirmQueue = emailQueue;
+      conv.current.emailConfirmIdx = 0;
+      conv.current.emailConfirmResult = { ...(meeting.participant_emails || {}) };
+      conv.current.phase = PHASE.EMAIL_CONFIRM;
+      askNextEmailConfirm();
+      return;
+    }
+    await doSchedule(slot);
+  }
+
   async function doSchedule(slot) {
     setLoading(true);
     try {
       const res = await MeetingAPI.schedule(conv.current.active, slot);
       conv.current.phase = PHASE.DONE;
+      conv.current.pendingSlot = null;
       pushBot('', { type: 'confirmation', summary: res.summary });
       pushBot('Would you like to schedule another meeting? Just describe it and I\'ll get started.');
     } catch (e) {
-      pushBot(`Scheduling failed: ${e.message}. Please try again.`);
+      if (e.code === 'GOOGLE_REAUTH_REQUIRED') {
+        pushBot(
+          'Your Google session has expired. Please sign in with Google again (use the Sign In button above) and then retry scheduling.'
+        );
+      } else {
+        pushBot(`Scheduling failed: ${e.message}. Please try again.`);
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  // ── Provider preference handling ───────────────────────────────────────────
+
+  async function tryHandleProviderPreference(text) {
+    const lower = text.toLowerCase().trim();
+
+    // "make X my default" / "set X as default" / "use X as default"
+    const defaultIntent = /\b(make|set|use)\b.+\b(default|always)\b/i.test(lower)
+      || /\bdefault.*(provider|meeting|platform)\b/i.test(lower);
+
+    if (!defaultIntent) return false;
+
+    const providerId = detectRequestedProvider(text);
+    if (!providerId) {
+      pushBot(
+        'Which provider would you like to set as your default? Supported options: Google Meet, Zoom, Teams, Webex.'
+      );
+      return true;
+    }
+
+    setLoading(true);
+    try {
+      const res = await IntegrationAPI.updatePreferences({ defaultMeetingProvider: providerId });
+      const updated = res.meetingProviders?.find((p) => p.id === providerId);
+      const label = updated?.label || providerId;
+      if (updated?.connected) {
+        pushBot(`Done! ${label} is now your default meeting provider. Future meetings will use it automatically.`);
+      } else {
+        pushBot(
+          `${label} has been set as your default provider.\n\n` +
+          `Note: ${label} is not currently connected — you'll need to connect it before scheduling.`
+        );
+      }
+    } catch (e) {
+      pushBot(`Couldn't update your preference: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+    return true;
   }
 
   // ── Follow-up meeting flow ─────────────────────────────────────────────────
@@ -913,10 +1059,15 @@ export function useChatFlow() {
       resetConv();
     }
 
+    const targetDate = parseDateOnlyFromText(lower);
+    const dateLabel = targetDate
+      ? new Date(targetDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+      : 'today';
+
     setLoading(true);
     let meetings = [];
     try {
-      const res = await AgendaAPI.getToday();
+      const res = targetDate ? await AgendaAPI.getForDate(targetDate) : await AgendaAPI.getToday();
       meetings = (res.meetings || []).filter((m) => m.id); // only real events can be modified
     } catch (e) {
       pushBot(`Couldn't fetch your meetings: ${e.message}`);
@@ -927,7 +1078,7 @@ export function useChatFlow() {
     }
 
     if (meetings.length === 0) {
-      pushBot("You have no modifiable meetings today. (Only Google Calendar events can be cancelled or rescheduled.)");
+      pushBot(`You have no modifiable meetings on ${dateLabel}. (Only Google Calendar events can be cancelled or rescheduled.)`);
       return true;
     }
 
@@ -1164,6 +1315,30 @@ export function useChatFlow() {
     }
   }
 
+  // Resolves a typed provider name against connected providers; returns the match or null.
+  async function resolveProviderFromText(text) {
+    let connectedProviders = [];
+    try {
+      const res = await IntegrationAPI.getConnected();
+      connectedProviders = (res.meetingProviders || []).filter((p) => p.connected);
+    } catch (_) {
+      connectedProviders = [{ id: 'google_meet', label: 'Google Meet' }];
+    }
+
+    const lower = text.toLowerCase();
+    for (const { id, keywords } of PROVIDER_KEYWORDS) {
+      if (keywords.some((kw) => lower.includes(kw))) {
+        return connectedProviders.find((p) => p.id === id) || null;
+      }
+    }
+    // Fallback: match by number (user types "1", "2", etc.)
+    const num = parseInt(lower, 10);
+    if (!isNaN(num) && num >= 1 && num <= connectedProviders.length) {
+      return connectedProviders[num - 1];
+    }
+    return null;
+  }
+
   function resetConv() {
     conv.current = {
       phase: PHASE.IDLE,
@@ -1175,6 +1350,7 @@ export function useChatFlow() {
       slots: [],
       platform: null,
       pendingAction: null,
+      pendingSlot: null,
       emailConfirmQueue: [],
       emailConfirmIdx: 0,
       emailConfirmResult: {},
@@ -1195,6 +1371,28 @@ export function useChatFlow() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Provider keyword map — extend this list when new providers are added to the registry
+const PROVIDER_KEYWORDS = [
+  { id: 'zoom',        keywords: ['zoom'] },
+  { id: 'google_meet', keywords: ['google meet', 'gmeet'] },
+  { id: 'teams',       keywords: ['teams', 'microsoft teams', 'ms teams'] },
+  { id: 'webex',       keywords: ['webex', 'cisco webex'] },
+];
+
+// Extracts an explicit provider preference from free-form text.
+// Returns the provider id string or null.
+// Uses word-boundary matching so "meeting" doesn't match "meet", etc.
+function detectRequestedProvider(text) {
+  const lower = text.toLowerCase();
+  for (const { id, keywords } of PROVIDER_KEYWORDS) {
+    if (keywords.some((kw) => {
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`\\b${escaped}\\b`).test(lower);
+    })) return id;
+  }
+  return null;
+}
+
 // Finds all contacts that fuzzy-match a participant name (same logic as backend applyContactEmails)
 function findContactsByName(participantName, contactList) {
   const q = participantName.toLowerCase().trim();
@@ -1208,6 +1406,20 @@ function findContactsByName(participantName, contactList) {
       q.includes(firstWord)
     );
   });
+}
+
+// Silently pre-fills participant_emails from the local contact cache.
+// Single unambiguous match → auto-use. Multiple matches → leave for buildEmailConfirmQueue.
+function enrichEmailsFromContacts(meeting, contactList) {
+  const participants = meeting.participants || [];
+  if (!participants.length) return meeting;
+  const emails = { ...(meeting.participant_emails || {}) };
+  for (const name of participants) {
+    if (emails[name]) continue; // already resolved by backend or previous step
+    const matches = findContactsByName(name, contactList);
+    if (matches.length === 1) emails[name] = matches[0].email;
+  }
+  return { ...meeting, participant_emails: emails };
 }
 
 // Builds the email confirmation queue using only MongoDB contacts.
@@ -1243,7 +1455,14 @@ async function tryAnswerCalendarQuestion(text, pushBot, setLoading, onEventMenti
   const lower = text.toLowerCase();
 
   // Don't intercept scheduling or follow-up requests — they happen to contain "meeting" and "today"
-  const isSchedulingRequest = /\b(schedule|book|create|set\s+up|plan|arrange|add|make)\b/i.test(lower);
+  const isSchedulingRequest =
+    /\b(schedule|book|create|set\s+up|plan|arrange|add|make)\b/i.test(lower) ||
+    // Fuzzy-match common "schedule" typos: scedule, shedule, schedual, etc.
+    /\bsc[hk]?[ae]?d[ue]{0,2}l/i.test(lower) ||
+    // "need/want/have to [schedule/book/meet]" expresses scheduling intent
+    /\b(need|want|have)\s+(to\s+)?(schedule|book|create|meet|set\s+up|scedule|shedule)/i.test(lower) ||
+    // bare "need" before a meeting noun is scheduling intent, not a lookup
+    /\bneed\s+(a\s+)?(meeting|call|appointment|sync|session)/i.test(lower);
   if (isSchedulingRequest) return false;
   const isFollowUpRequest = /\bfollow[- ]?up\b/i.test(lower);
   if (isFollowUpRequest) return false;
@@ -1406,6 +1625,25 @@ function parseDateOnlyFromText(text) {
   return null;
 }
 
+// Tries to extract a specific field type from free-form text.
+// Returns the extracted value (string/number) or null if not found.
+function extractFieldFromText(text, fieldType) {
+  const lower = text.toLowerCase().trim();
+  if (fieldType === 'duration') {
+    const m = lower.match(/\b(\d+(?:\.\d+)?)\s*(h(?:our)?s?|min(?:ute)?s?)\b/);
+    if (!m) return null;
+    const val = parseFloat(m[1]);
+    const unit = m[2];
+    return /^h/.test(unit) ? String(Math.round(val * 60)) : String(Math.round(val));
+  }
+  if (fieldType === 'time') {
+    const m = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+    if (!m) return null;
+    return parseTimeToHHMM(`${m[1]}${m[2] ? ':' + m[2] : ''} ${m[3]}`);
+  }
+  return null;
+}
+
 // Converts a raw time string like "3 pm", "3:30pm", "15:00" to "HH:MM" or null
 function parseTimeToHHMM(raw) {
   if (!raw) return null;
@@ -1545,7 +1783,10 @@ function formatTime(time) {
 
 function formatDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso + 'T12:00:00');
+  // Guard: only append T12:00:00 for valid ISO date strings to avoid "Invalid Date"
+  const isISODate = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  const d = isISODate ? new Date(iso + 'T12:00:00') : new Date(iso);
+  if (isNaN(d.getTime())) return iso; // return raw string rather than "Invalid Date"
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 }
 

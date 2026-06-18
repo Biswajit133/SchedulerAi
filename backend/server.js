@@ -4,8 +4,10 @@ const cors = require('cors');
 const session = require('express-session');
 const { MongoStore } = require('connect-mongo');
 const routes = require('./src/routes/meetingRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const { errorHandler } = require('./src/middleware/validation');
 const { connectDB } = require('./src/config/database');
+const { seedProviderSettings } = require('./src/controllers/AdminController');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +32,7 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }));
@@ -44,12 +47,14 @@ if (process.env.NODE_ENV !== 'production') {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api', routes);
+app.use('/api/admin', adminRoutes);
 
 // ─── Error Handler ─────────────────────────────────────────────────────────────
 app.use(errorHandler);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-connectDB().then(() => {
+connectDB().then(async () => {
+  await seedProviderSettings();
   app.listen(PORT, () => {
     const provider = process.env.AI_PROVIDER || 'groq';
     console.log(`\n🚀 SchedulerAI backend running on http://localhost:${PORT}`);

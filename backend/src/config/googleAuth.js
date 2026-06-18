@@ -90,6 +90,10 @@ async function exchangeCode(code, req) {
           { upsert: true }
         );
         console.log('[googleAuth] User upserted in DB:', data.email);
+        // Keep session in sync: ensure the session also carries the preserved refresh_token
+        if (tokensToSave !== tokens) {
+          req.session.googleTokens = tokensToSave;
+        }
       } catch (err) {
         console.error('[googleAuth] DB upsert failed (non-fatal):', err.message);
       }
@@ -145,7 +149,15 @@ async function _buildClient(tokens, onRefresh) {
   const client = createOAuth2Client();
   client.setCredentials(tokens);
 
-  if (tokens.expiry_date && tokens.expiry_date < Date.now() + 60000) {
+  // Use 6-minute window — googleapis auto-refreshes within 5 min, so we must act first
+  // to control error handling (otherwise the error surfaces during the API call itself).
+  const isExpiredOrExpiring = tokens.expiry_date && tokens.expiry_date < Date.now() + 360000;
+
+  if (isExpiredOrExpiring) {
+    if (!tokens.refresh_token) {
+      console.warn('[googleAuth] Token expired/expiring but no refresh_token — re-auth required');
+      return null;
+    }
     try {
       const { credentials } = await client.refreshAccessToken();
       await onRefresh(credentials);
@@ -160,7 +172,7 @@ async function _buildClient(tokens, onRefresh) {
 }
 
 function isAuthenticated(req) {
-  return !!(req?.session?.googleTokens?.access_token);
+  return !!(req?.session?.googleTokens?.access_token || req?.session?.microsoftTokens?.access_token);
 }
 
 function getSessionUser(req) {

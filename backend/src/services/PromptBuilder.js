@@ -41,7 +41,7 @@ Return ONLY a valid JSON object with this exact structure. No markdown, no expla
       "owner": "string (person responsible, or null)",
       "deadline": "YYYY-MM-DD or null",
       "date": "YYYY-MM-DD or null",
-      "time": "HH:MM (24h) or null",
+      "time": "HH:MM (24h) or null — ONLY the start time, never include duration here",
       "duration": null
     }
   ]
@@ -49,9 +49,11 @@ Return ONLY a valid JSON object with this exact structure. No markdown, no expla
 
 Rules:
 - Extract EACH separate task/meeting as its own entry
+- "in [Name]" where [Name] is a person's name (not a place) should be treated as a participant, not a location. Disambiguate by context: if the word after "in" is a proper person name with no known geographic meaning, add it to participants.
 - Set participant_emails values to null if not mentioned
 - Convert all relative dates to absolute YYYY-MM-DD format
 - NEVER default duration — if the user did not explicitly state a duration, set it to null
+- The "time" field must ONLY contain the start time in HH:MM (24h) format. NEVER put "2 pm for 30 minutes" or any duration/phrase in the time field — duration belongs in "duration" as a number of minutes
 - meeting_title must reflect only what the user said (e.g. "Frontend Login Page Development"). If the user gave no topic, set to null
 - NEVER invent titles like "Ad Hoc Meeting", "General Discussion", "Quick Sync", "Untitled Meeting"
 - owner is the person assigned to do the task

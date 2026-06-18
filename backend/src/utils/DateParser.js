@@ -20,8 +20,23 @@ class DateParser {
   // Convert a local date+time string to a UTC ISO string using the user's timezone.
   // dateStr: "YYYY-MM-DD", localTime24: "HH:MM", returns Date (UTC).
   static localToUTC(dateStr, localTime24, timeZone) {
-    if (!localTime24 || !/^\d{1,2}:\d{2}$/.test(localTime24)) {
+    if (!localTime24) {
       throw new Error(`Invalid time value: "${localTime24}". Expected HH:MM format.`);
+    }
+    if (!/^\d{1,2}:\d{2}$/.test(localTime24)) {
+      // Extract a time token from strings like "2 pm for 30 minutes" or "2:30pm"
+      const extracted = localTime24.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+        || localTime24.match(/\b(\d{1,2}):(\d{2})\b/);
+      if (extracted) {
+        let h = parseInt(extracted[1], 10);
+        const m = parseInt(extracted[2] || '0', 10);
+        const meridiem = (extracted[3] || '').toLowerCase();
+        if (meridiem === 'pm' && h !== 12) h += 12;
+        if (meridiem === 'am' && h === 12) h = 0;
+        localTime24 = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      } else {
+        throw new Error(`Invalid time value: "${localTime24}". Expected HH:MM format.`);
+      }
     }
     if (!timeZone) return new Date(`${dateStr}T${localTime24}:00`);
 
@@ -49,33 +64,36 @@ class DateParser {
   static parseRelativeDate(text, referenceDate = new Date()) {
     if (!text) return null;
     // Normalise ordinal suffixes: "4th june" → "4 june", "1st" → "1", etc.
-    const lower = text.toLowerCase().trim().replace(/\b(\d+)(?:st|nd|rd|th)\b/g, '$1');
+    let lower = text.toLowerCase().trim().replace(/\b(\d+)(?:st|nd|rd|th)\b/g, '$1');
     const ref = new Date(referenceDate);
     ref.setHours(0, 0, 0, 0);
 
-    if (lower === 'today') return this.toISODate(ref);
-    if (lower === 'tomorrow') {
+    // Word-boundary checks handle compound inputs like "today at 2:30 pm" or "tomorrow 3pm"
+    if (/\btoday\b/.test(lower)) return this.toISODate(ref);
+    if (/\btomorrow\b/.test(lower)) {
       const d = new Date(ref);
       d.setDate(d.getDate() + 1);
       return this.toISODate(d);
     }
-    if (lower === 'day after tomorrow') {
+    if (/\bday after tomorrow\b/.test(lower)) {
       const d = new Date(ref);
       d.setDate(d.getDate() + 2);
       return this.toISODate(d);
     }
-    if (lower === 'next week') {
+    if (/\bnext week\b/.test(lower)) {
       const d = new Date(ref);
       d.setDate(d.getDate() + 7);
       return this.toISODate(d);
     }
 
-    const dayIdx = DAYS.indexOf(lower);
+    // Match day names as whole words to handle "friday at 2pm", "next monday", etc.
+    const dayWordMatch = lower.match(/\b(next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
+    const dayIdx = dayWordMatch ? DAYS.indexOf(dayWordMatch[2]) : DAYS.indexOf(lower);
     if (dayIdx !== -1) {
       const d = new Date(ref);
       const current = d.getDay();
       let diff = dayIdx - current;
-      if (diff <= 0) diff += 7;
+      if (diff <= 0 || dayWordMatch?.[1]) diff += 7;
       d.setDate(d.getDate() + diff);
       return this.toISODate(d);
     }
@@ -120,16 +138,8 @@ class DateParser {
     if (!text) return null;
     const lower = text.toLowerCase().trim();
 
-    // 24h format: "14:30"
-    const h24 = lower.match(/^(\d{1,2}):(\d{2})$/);
-    if (h24) {
-      const h = parseInt(h24[1]);
-      const m = parseInt(h24[2]);
-      if (h < 24 && m < 60) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    }
-
-    // 12h format: "2:30 pm", "10am"
-    const h12 = lower.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+    // 12h format first (more specific): "2:30 pm", "10am", "2 pm for 30 minutes"
+    const h12 = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
     if (h12) {
       let h = parseInt(h12[1]);
       const m = parseInt(h12[2] || '0');
@@ -137,6 +147,14 @@ class DateParser {
       if (meridiem === 'pm' && h !== 12) h += 12;
       if (meridiem === 'am' && h === 12) h = 0;
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    // 24h format: "14:30"
+    const h24 = lower.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (h24) {
+      const h = parseInt(h24[1]);
+      const m = parseInt(h24[2]);
+      if (h < 24 && m < 60) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
     return null;

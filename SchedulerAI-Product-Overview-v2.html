@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SchedulerAI — Product Overview v2</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      color: #1e293b;
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 13mm 15mm 13mm 15mm;
+    }
+
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { margin: 0; padding: 11mm 13mm; }
+      .page-break { page-break-before: always; }
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 11px;
+      border-bottom: 2.5px solid #6366f1;
+      margin-bottom: 16px;
+    }
+    .logo-box {
+      width: 42px; height: 42px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-box svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .header-text h1 { font-size: 21pt; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; }
+    .header-text p  { font-size: 9pt; color: #64748b; margin-top: 2px; }
+    .header-badge {
+      margin-left: auto;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #16a34a;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 8pt;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #6366f1;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 15px 0 7px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e2e8f0;
+    }
+
+    /* ── Grids ── */
+    .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; }
+    .four-col  { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 9px; }
+
+    /* ── Cards ── */
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 9px 11px;
+    }
+    .card-title {
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .card-body { font-size: 8pt; color: #475569; }
+    .card-body ul { padding-left: 13px; }
+    .card-body li { margin-bottom: 2px; }
+
+    /* ── Badges ── */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 7.5pt;
+      font-weight: 600;
+    }
+    .badge-purple { background: #ede9fe; color: #7c3aed; border: 1px solid #c4b5fd; }
+    .badge-blue   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .badge-green  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-amber  { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .badge-rose   { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+    .badge-sky    { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge-teal   { background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: 8pt; margin-top: 5px; }
+    th {
+      background: #6366f1;
+      color: #fff;
+      padding: 5px 9px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 7.5pt;
+    }
+    th:first-child { border-radius: 8px 0 0 0; }
+    th:last-child  { border-radius: 0 8px 0 0; }
+    td { padding: 4.5px 9px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr:last-child td { border-bottom: none; }
+    .badge-inline {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 7pt;
+      font-weight: 700;
+    }
+    .tag-live     { background: #dcfce7; color: #15803d; }
+    .tag-soon     { background: #fef3c7; color: #b45309; }
+    .tag-planned  { background: #f1f5f9; color: #64748b; }
+    .tag-cheapest { background: #dcfce7; color: #15803d; }
+    .tag-popular  { background: #dbeafe; color: #1d4ed8; }
+    .tag-powerful { background: #ede9fe; color: #7c3aed; }
+    .tag-fast     { background: #fef3c7; color: #b45309; }
+
+    /* ── Flow steps ── */
+    .flow-row {
+      display: flex;
+      align-items: center;
+      margin: 7px 0;
+    }
+    .flow-step {
+      flex: 1;
+      text-align: center;
+      padding: 7px 5px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+    .flow-step-num {
+      display: inline-flex;
+      width: 18px; height: 18px;
+      background: #6366f1;
+      color: #fff;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      font-size: 7pt;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .flow-step-label { font-size: 7pt; color: #334155; font-weight: 600; }
+    .flow-step-sub   { font-size: 6.5pt; color: #94a3b8; margin-top: 2px; }
+    .flow-arrow { font-size: 13pt; color: #cbd5e1; flex-shrink: 0; padding: 0 2px; }
+
+    /* ── Highlight boxes ── */
+    .highlight-box {
+      background: linear-gradient(135deg, #ede9fe 0%, #dbeafe 100%);
+      border: 1px solid #c4b5fd;
+      border-radius: 10px;
+      padding: 9px 13px;
+      margin: 8px 0;
+    }
+    .highlight-box p { font-size: 9pt; color: #3730a3; font-weight: 600; }
+    .highlight-box span { font-weight: 400; color: #4338ca; }
+
+    .green-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 8pt;
+      color: #15803d;
+      margin-top: 7px;
+    }
+
+    /* ── Pricing tiers ── */
+    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 7px; }
+    .tier {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 9px 11px;
+      text-align: center;
+    }
+    .tier.highlight { border-color: #6366f1; background: #faf5ff; }
+    .tier-name  { font-size: 8.5pt; font-weight: 700; color: #1e293b; }
+    .tier-price { font-size: 17pt; font-weight: 800; color: #6366f1; margin: 4px 0; }
+    .tier-price span { font-size: 8.5pt; font-weight: 400; color: #64748b; }
+    .tier-perks { font-size: 7pt; color: #475569; text-align: left; margin-top: 5px; }
+    .tier-perks li { margin-bottom: 2px; padding-left: 11px; list-style: none; position: relative; }
+    .tier-perks li::before { content: '✓'; position: absolute; left: 0; color: #6366f1; font-weight: 700; }
+
+    /* ── Roadmap ── */
+    .roadmap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 7px; }
+    .roadmap-card { border-radius: 10px; padding: 9px 11px; border: 1px solid; }
+    .rm-done { background: #f0fdf4; border-color: #bbf7d0; }
+    .rm-q3   { background: #eff6ff; border-color: #bfdbfe; }
+    .rm-q4   { background: #faf5ff; border-color: #e9d5ff; }
+    .rm-2027 { background: #fffbeb; border-color: #fde68a; }
+    .rm-label {
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    .rm-done .rm-label { color: #15803d; }
+    .rm-q3   .rm-label { color: #1d4ed8; }
+    .rm-q4   .rm-label { color: #7c3aed; }
+    .rm-2027 .rm-label { color: #b45309; }
+    .rm-title { font-size: 8.5pt; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .rm-features { font-size: 7.5pt; color: #475569; }
+    .rm-features li { margin-bottom: 2px; padding-left: 12px; list-style: none; position: relative; }
+    .rm-done .rm-features li::before { content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
+    .rm-q3   .rm-features li::before { content: '→'; position: absolute; left: 0; color: #3b82f6; }
+    .rm-q4   .rm-features li::before { content: '→'; position: absolute; left: 0; color: #8b5cf6; }
+    .rm-2027 .rm-features li::before { content: '→'; position: absolute; left: 0; color: #f59e0b; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 16px;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 7pt;
+      color: #94a3b8;
+    }
+
+    /* ── Provider status dot ── */
+    .dot-live    { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; margin-right: 4px; }
+    .dot-soon    { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; margin-right: 4px; }
+    .dot-planned { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; margin-right: 4px; }
+
+    /* ── Mini info row ── */
+    .info-row { display: flex; gap: 10px; margin: 5px 0; flex-wrap: wrap; }
+    .info-item { font-size: 7.5pt; color: #475569; display: flex; align-items: center; gap: 4px; }
+    .info-item strong { color: #1e293b; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ PAGE 1 ══ -->
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1>SchedulerAI</h1>
+      <p>AI-Powered Meeting Scheduler &nbsp;·&nbsp; Product Overview for Management &nbsp;·&nbsp; v2.0</p>
+    </div>
+    <div class="header-badge">✦ Production Ready</div>
+  </div>
+
+  <!-- Tagline -->
+  <div class="highlight-box">
+    <p>SchedulerAI lets you schedule meetings using plain English. <span>It connects with Google Calendar, Microsoft Outlook, Zoom, and Microsoft Teams — extracts meeting details with AI, detects conflicts, and sends invites in under 30 seconds. Admins control which integrations are enabled; users manage their own connected accounts and preferences.</span></p>
+  </div>
+
+  <!-- ── FEATURE BADGES ── -->
+  <div class="section-title">Current Features</div>
+
+  <div class="badge-row">
+    <span class="badge badge-purple">🤖 AI Extraction</span>
+    <span class="badge badge-blue">📅 Google Calendar</span>
+    <span class="badge badge-sky">📅 Outlook Calendar</span>
+    <span class="badge badge-blue">🎥 Google Meet</span>
+    <span class="badge badge-sky">💼 Microsoft Teams</span>
+    <span class="badge badge-blue">🎬 Zoom</span>
+    <span class="badge badge-green">🔐 Google OAuth</span>
+    <span class="badge badge-sky">🔐 Microsoft OAuth</span>
+    <span class="badge badge-amber">⚡ Conflict Detection</span>
+    <span class="badge badge-rose">🚨 Priority Badges</span>
+    <span class="badge badge-teal">⚙️ Admin Panel</span>
+    <span class="badge badge-green">👤 User Settings</span>
+    <span class="badge badge-purple">🔄 Multi-AI Providers</span>
+    <span class="badge badge-amber">🕒 Timezone Support</span>
+  </div>
+
+  <!-- ── FEATURE CARDS ── -->
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">🤖 Natural Language Scheduling</div>
+      <div class="card-body">
+        Type raw meeting notes like <em>"Budget review with John tomorrow 3 PM for 1 hour."</em> AI (Groq / GPT-4o / Claude / Gemini) extracts title, participants, date, time, and duration with no forms required.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📅 Multi-Calendar Integration</div>
+      <div class="card-body">
+        Google Calendar and Microsoft Outlook are both live. Real-time busy slot checking via OAuth — if your chosen time is taken, the nearest available alternatives are suggested automatically.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🎥 Multi-Platform Meeting Links</div>
+      <div class="card-body">
+        <strong>Google Meet</strong> links auto-generate via Google Calendar. <strong>Zoom</strong> uses Server-to-Server OAuth. <strong>Microsoft Teams</strong> creates online meetings via Graph API and adds them to Outlook Calendar. User picks the platform before booking.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ Smart Conflict Detection</div>
+      <div class="card-body">
+        If the requested slot overlaps with existing events, the system offers up to 3 alternative time slots ranked by proximity. No manual back-and-forth needed.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚙️ Admin Settings Panel</div>
+      <div class="card-body">
+        Administrators toggle calendar providers, meeting platforms, and auth providers on or off via a dashboard. Settings persist in MongoDB (<code>ProviderSettings</code> model) and propagate to all users instantly.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">👤 User Settings & Preferences</div>
+      <div class="card-body">
+        Each user configures their timezone (23 zones), default meeting duration presets, and manages their connected calendar + meeting accounts. Preferences are stored per-user in MongoDB.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🚨 Priority &amp; Urgency Detection</div>
+      <div class="card-body">
+        Detects keywords like "urgent," "critical," or "ASAP" and assigns a High / Medium / Low priority badge to each meeting automatically, surfaced in the dashboard agenda view.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Conversational Missing-Field Recovery</div>
+      <div class="card-body">
+        If any required detail is missing (no email, no time), the system asks one targeted follow-up question at a time — keeping UX conversational rather than showing a big form.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HOW IT WORKS ── -->
+  <div class="section-title">How It Works — User Flow</div>
+
+  <div class="flow-row">
+    <div class="flow-step">
+      <div><div class="flow-step-num">1</div></div>
+      <div class="flow-step-label">Sign In</div>
+      <div class="flow-step-sub">Google or Microsoft OAuth</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">2</div></div>
+      <div class="flow-step-label">Type Notes</div>
+      <div class="flow-step-sub">Plain English input</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">3</div></div>
+      <div class="flow-step-label">AI Extracts</div>
+      <div class="flow-step-sub">Title, time, attendees</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">4</div></div>
+      <div class="flow-step-label">Pick Platform</div>
+      <div class="flow-step-sub">Meet / Zoom / Teams</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">5</div></div>
+      <div class="flow-step-label">Choose Slot</div>
+      <div class="flow-step-sub">Conflict-free times shown</div>
+    </div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step">
+      <div><div class="flow-step-num">6</div></div>
+      <div class="flow-step-label">Confirmed ✓</div>
+      <div class="flow-step-sub">Invite sent instantly</div>
+    </div>
+  </div>
+
+  <!-- ── TECH STACK ── -->
+  <div class="section-title">Tech Stack</div>
+
+  <div class="four-col">
+    <div class="card">
+      <div class="card-title">Frontend</div>
+      <div class="card-body">
+        <ul>
+          <li>React 18 + Vite</li>
+          <li>TailwindCSS 3 (dark)</li>
+          <li>Responsive, mobile-ready</li>
+          <li>React Router v6</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Backend</div>
+      <div class="card-body">
+        <ul>
+          <li>Node.js + Express</li>
+          <li>MongoDB (Mongoose)</li>
+          <li>JWT authentication</li>
+          <li>REST API</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Integrations</div>
+      <div class="card-body">
+        <ul>
+          <li>Google Calendar API v3</li>
+          <li>Microsoft Graph API</li>
+          <li>Zoom Server-to-Server</li>
+          <li>MSAL (Microsoft Auth)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">AI Providers</div>
+      <div class="card-body">
+        <ul>
+          <li>Groq (Llama 3.1/3.3 70B)</li>
+          <li>OpenAI (GPT-4o / mini)</li>
+          <li>Claude (Haiku 4.5 / Sonnet 4.6)</li>
+          <li>Gemini (1.5 Flash / Pro)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer page 1 -->
+  <div class="footer">
+    <span>SchedulerAI — Confidential Product Overview v2 &nbsp;·&nbsp; Prepared by Biswajit Singha</span>
+    <span>June 2026 &nbsp;·&nbsp; Page 1 of 3</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ PAGE 2 ══ -->
+<div class="page page-break">
+
+  <!-- Header (compact) -->
+  <div class="header" style="margin-bottom:13px;">
+    <div class="logo-box" style="width:34px;height:34px;">
+      <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1 style="font-size:15pt;">SchedulerAI</h1>
+      <p>Integration Matrix &nbsp;·&nbsp; Provider Registry &amp; Admin Controls</p>
+    </div>
+    <div class="header-badge">Integrations</div>
+  </div>
+
+  <!-- ── CALENDAR PROVIDERS ── -->
+  <div class="section-title">Calendar Providers</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>API / Protocol</th>
+        <th>Auth Method</th>
+        <th>Features</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Google Calendar</strong></td>
+        <td>Google Calendar API v3</td>
+        <td>OAuth 2.0 (googleTokens)</td>
+        <td>Create events, check availability, send invites, Meet link generation</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Microsoft Outlook</strong></td>
+        <td>Microsoft Graph API</td>
+        <td>MSAL OAuth (outlookTokens)</td>
+        <td>Create Outlook events, check calendar free/busy, add Teams meeting links</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Apple Calendar</strong></td>
+        <td>CalDAV</td>
+        <td>iCloud OAuth (appleTokens)</td>
+        <td>Create and sync events to Apple Calendar</td>
+        <td><span class="badge-inline tag-planned">○ Planned</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── MEETING PLATFORMS ── -->
+  <div class="section-title">Meeting Platforms</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>API</th>
+        <th>Auth Method</th>
+        <th>Features</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Google Meet</strong></td>
+        <td>Google Calendar API v3</td>
+        <td>Piggybacks on Google Calendar OAuth</td>
+        <td>Auto-generate Meet conference link on calendar event creation</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Zoom</strong></td>
+        <td>Zoom REST API v2</td>
+        <td>Server-to-Server OAuth (zoomTokens)</td>
+        <td>Create Zoom meeting, auto-generate join URL, add to calendar</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Microsoft Teams</strong></td>
+        <td>Microsoft Graph API</td>
+        <td>MSAL OAuth (teamsTokens)</td>
+        <td>Create Teams online meeting, add join link to Outlook Calendar event</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Cisco Webex</strong></td>
+        <td>Webex REST API</td>
+        <td>Webex OAuth (webexTokens)</td>
+        <td>Create Webex meeting, generate join URL</td>
+        <td><span class="badge-inline tag-planned">○ Planned</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── AUTH PROVIDERS ── -->
+  <div class="section-title">Authentication Providers</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>Protocol</th>
+        <th>Implementation</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Google OAuth</strong></td>
+        <td>OAuth 2.0</td>
+        <td>GoogleAuthProvider — full sign-in + Calendar + Meet token grant</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Microsoft OAuth</strong></td>
+        <td>OAuth 2.0 (MSAL)</td>
+        <td>MicrosoftAuthProvider — sign-in + Outlook + Teams token grant</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Email / Password</strong></td>
+        <td>JWT</td>
+        <td>EmailAuthProvider stub — bcrypt hash + JWT session</td>
+        <td><span class="badge-inline tag-soon">◐ Coming Soon</span></td>
+      </tr>
+      <tr>
+        <td><strong>GitHub OAuth</strong></td>
+        <td>OAuth 2.0</td>
+        <td>GitHubAuthProvider stub — developer-focused sign-in</td>
+        <td><span class="badge-inline tag-soon">◐ Coming Soon</span></td>
+      </tr>
+      <tr>
+        <td><strong>LinkedIn OAuth</strong></td>
+        <td>OAuth 2.0</td>
+        <td>LinkedInAuthProvider stub — professional network sign-in</td>
+        <td><span class="badge-inline tag-soon">◐ Coming Soon</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── AI PROVIDERS ── -->
+  <div class="section-title">AI Providers</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>Models Supported</th>
+        <th>Use Case</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Groq</strong></td>
+        <td>Llama 3.1 70B, Llama 3.3 70B</td>
+        <td>Default — ultra-fast inference, lowest cost (~$0.00055/request)</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI</strong></td>
+        <td>GPT-4o mini, GPT-4o</td>
+        <td>Balanced accuracy; GPT-4o for enterprise-grade extraction</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Anthropic</strong></td>
+        <td>Claude Haiku 4.5, Claude Sonnet 4.6</td>
+        <td>High-accuracy parsing with extended reasoning; multi-context NLP</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+      <tr>
+        <td><strong>Google Gemini</strong></td>
+        <td>Gemini 1.5 Flash, Gemini 1.5 Pro</td>
+        <td>Flash = cheapest option; Pro = balanced accuracy at mid cost</td>
+        <td><span class="badge-inline tag-live">● Live</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── ADMIN & USER SETTINGS ── -->
+  <div class="section-title">Admin Panel &amp; User Settings</div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">⚙️ Admin Settings Panel</div>
+      <div class="card-body">
+        <ul>
+          <li>Toggle each calendar provider, meeting platform, and auth provider on/off</li>
+          <li>Settings stored in MongoDB <code>ProviderSettings</code> collection</li>
+          <li>Seeded with defaults on server startup via <code>AdminController</code></li>
+          <li>Integration status reflects immediately for all users</li>
+          <li>Admin-only route protection with role check</li>
+          <li>Live status indicators per provider (Live / Disabled)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">👤 User Settings Page</div>
+      <div class="card-body">
+        <ul>
+          <li>23 timezone options (UTC−12 through UTC+14)</li>
+          <li>Default meeting duration presets (15 / 30 / 45 / 60 / 90 min)</li>
+          <li>Connected integrations manager — connect or disconnect Google, Microsoft, Zoom per-account</li>
+          <li>Preferences persisted per-user in MongoDB <code>User</code> model</li>
+          <li>View currently linked calendar and meeting accounts</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="green-box">
+    <strong>Integration Service Architecture:</strong> A dynamic provider registry (<code>providerRegistry.js</code>) + <code>IntegrationService.js</code> resolve which providers are available at runtime — combining the static <code>available</code> flag, the per-user OAuth token presence, and the admin-toggled MongoDB state. No code changes needed to add new providers; register in the registry only.
+  </div>
+
+  <!-- ── DATA MODEL OVERVIEW ── -->
+  <div class="section-title">Data Model — Key Collections</div>
+
+  <div class="three-col">
+    <div class="card">
+      <div class="card-title">User</div>
+      <div class="card-body">
+        <ul>
+          <li>googleTokens (access + refresh)</li>
+          <li>outlookTokens (MSAL)</li>
+          <li>teamsTokens (MSAL)</li>
+          <li>zoomTokens (S2S)</li>
+          <li>microsoftTokens</li>
+          <li>timezone, durationPresets</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">ProviderSettings</div>
+      <div class="card-body">
+        <ul>
+          <li>providerId (e.g. "google", "teams")</li>
+          <li>providerType ("calendar" / "meeting" / "auth")</li>
+          <li>enabled (boolean)</li>
+          <li>label, description</li>
+          <li>Seeded on startup, editable by admin</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Meeting / Event</div>
+      <div class="card-body">
+        <ul>
+          <li>title, description, agenda</li>
+          <li>participants (array)</li>
+          <li>startTime, endTime, timezone</li>
+          <li>platform (meet / zoom / teams)</li>
+          <li>meetLink, priority</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer page 2 -->
+  <div class="footer">
+    <span>SchedulerAI — Confidential Product Overview v2 &nbsp;·&nbsp; Prepared by Biswajit Singha</span>
+    <span>June 2026 &nbsp;·&nbsp; Page 2 of 3</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ PAGE 3 ══ -->
+<div class="page page-break">
+
+  <!-- Header (compact) -->
+  <div class="header" style="margin-bottom:13px;">
+    <div class="logo-box" style="width:34px;height:34px;">
+      <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1 style="font-size:15pt;">SchedulerAI</h1>
+      <p>AI API Cost Analysis &nbsp;·&nbsp; Pricing Model &nbsp;·&nbsp; Product Roadmap</p>
+    </div>
+    <div class="header-badge">Cost &amp; Roadmap</div>
+  </div>
+
+  <!-- ── AI API COST COMPARISON ── -->
+  <div class="section-title">AI Provider Cost Comparison</div>
+  <p style="font-size:7.5pt;color:#64748b;margin-bottom:5px;">
+    Each meeting scheduling request uses approx. <strong>~600 input tokens</strong> (user notes + system prompt) and <strong>~250 output tokens</strong> (extracted JSON). Per-request costs calculated accordingly.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Input / 1M tokens</th>
+        <th>Output / 1M tokens</th>
+        <th>Cost per request (~600in + 250out)</th>
+        <th>Tag</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Gemini</strong></td>
+        <td>1.5 Flash</td>
+        <td>$0.075</td>
+        <td>$0.30</td>
+        <td>~$0.00012</td>
+        <td><span class="badge-inline tag-cheapest">Ultra Cheap</span></td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI</strong></td>
+        <td>GPT-4o mini</td>
+        <td>$0.15</td>
+        <td>$0.60</td>
+        <td>~$0.00024</td>
+        <td><span class="badge-inline tag-popular">Popular</span></td>
+      </tr>
+      <tr>
+        <td><strong>Groq</strong></td>
+        <td>Llama 3.1 / 3.3 70B</td>
+        <td>$0.59</td>
+        <td>$0.79</td>
+        <td>~$0.00055</td>
+        <td><span class="badge-inline tag-cheapest">Cheapest + Fastest</span></td>
+      </tr>
+      <tr>
+        <td><strong>Claude</strong></td>
+        <td>Haiku 4.5</td>
+        <td>$1.00</td>
+        <td>$5.00</td>
+        <td>~$0.00185</td>
+        <td><span class="badge-inline tag-fast">Fast</span></td>
+      </tr>
+      <tr>
+        <td><strong>Gemini</strong></td>
+        <td>1.5 Pro</td>
+        <td>$1.25</td>
+        <td>$5.00</td>
+        <td>~$0.0020</td>
+        <td><span class="badge-inline tag-popular">Balanced</span></td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI</strong></td>
+        <td>GPT-4o</td>
+        <td>$2.50</td>
+        <td>$10.00</td>
+        <td>~$0.0040</td>
+        <td><span class="badge-inline tag-powerful">Powerful</span></td>
+      </tr>
+      <tr>
+        <td><strong>Claude</strong></td>
+        <td>Sonnet 4.6</td>
+        <td>$3.00</td>
+        <td>$15.00</td>
+        <td>~$0.00555</td>
+        <td><span class="badge-inline tag-powerful">Powerful</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="green-box">
+    <strong>Recommended default:</strong> Groq (Llama 3.3 70B) — lowest cost with fastest response (~0.2 s). Switch to GPT-4o or Claude Sonnet 4.6 for enterprise-accuracy workloads via a single environment variable — no code changes needed.
+  </div>
+
+  <!-- ── USER PRICING MODEL ── -->
+  <div class="section-title">Suggested User Pricing Model</div>
+  <p style="font-size:7.5pt;color:#64748b;margin-bottom:4px;">
+    Based on <strong>Groq as default AI</strong> (cheapest). Cost per 100 meetings ≈ $0.055. Pricing below includes infrastructure, API margin, and business profit.
+  </p>
+
+  <div class="pricing-grid">
+    <div class="tier">
+      <div class="tier-name">Free</div>
+      <div class="tier-price">$0 <span>/mo</span></div>
+      <ul class="tier-perks">
+        <li>10 meetings / month</li>
+        <li>Google Meet only</li>
+        <li>1 connected account</li>
+        <li>Basic AI (Groq)</li>
+        <li>Google Calendar sync</li>
+      </ul>
+    </div>
+    <div class="tier highlight">
+      <div class="tier-name">Pro ⭐</div>
+      <div class="tier-price">$9 <span>/mo</span></div>
+      <ul class="tier-perks">
+        <li>200 meetings / month</li>
+        <li>Meet + Zoom + Teams</li>
+        <li>Google + Outlook calendars</li>
+        <li>Priority AI (GPT-4o mini)</li>
+        <li>Agenda dashboard + invites</li>
+        <li>Custom timezone settings</li>
+      </ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Business</div>
+      <div class="tier-price">$29 <span>/mo</span></div>
+      <ul class="tier-perks">
+        <li>Unlimited meetings</li>
+        <li>All platforms &amp; calendars</li>
+        <li>All AI providers (choose)</li>
+        <li>Team members (5 seats)</li>
+        <li>Admin panel access</li>
+        <li>Priority support</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="font-size:7pt;color:#94a3b8;margin-top:5px;">
+    <strong>Unit economics (Pro, 200 meetings/month):</strong> &nbsp;AI cost ≈ $0.05 &nbsp;·&nbsp; Server ≈ $2 &nbsp;·&nbsp; Total cost ≈ $2.05 &nbsp;·&nbsp; Revenue = $9 &nbsp;·&nbsp; Gross margin ≈ <strong style="color:#15803d;">77%</strong> per Pro user.
+  </div>
+
+  <!-- ── ROADMAP ── -->
+  <div class="section-title">Product Roadmap</div>
+
+  <div class="roadmap-grid">
+    <div class="roadmap-card rm-done">
+      <div class="rm-label">✦ Q1–Q2 2026 — Delivered</div>
+      <div class="rm-title">Core Platform &amp; Integrations</div>
+      <ul class="rm-features">
+        <li>Google Calendar + Google Meet + Zoom (live)</li>
+        <li>Microsoft Outlook Calendar (live via Graph API)</li>
+        <li>Microsoft Teams meeting links (live)</li>
+        <li>Google OAuth + Microsoft OAuth (live)</li>
+        <li>Admin Panel — provider toggles (live)</li>
+        <li>User Settings — timezone &amp; duration prefs (live)</li>
+        <li>MongoDB persistent storage (live)</li>
+      </ul>
+    </div>
+    <div class="roadmap-card rm-q3">
+      <div class="rm-label">Q3 2026 — Near Term</div>
+      <div class="rm-title">Platform Expansion</div>
+      <ul class="rm-features">
+        <li>Cisco Webex meeting links</li>
+        <li>Apple Calendar (CalDAV) integration</li>
+        <li>Email/Password auth + GitHub + LinkedIn OAuth</li>
+        <li>Recurring meeting support ("every Monday 10 AM")</li>
+        <li>Email/SMS reminders for upcoming meetings</li>
+      </ul>
+    </div>
+    <div class="roadmap-card rm-q4">
+      <div class="rm-label">Q4 2026 — Growth</div>
+      <div class="rm-title">Team &amp; Collaboration</div>
+      <ul class="rm-features">
+        <li>Multi-user workspaces with role-based access</li>
+        <li>Shared team calendar + group availability view</li>
+        <li>Meeting templates for recurring meeting types</li>
+        <li>Slack / WhatsApp bot integration for scheduling</li>
+        <li>Meeting analytics dashboard (load, trends)</li>
+      </ul>
+    </div>
+    <div class="roadmap-card rm-2027">
+      <div class="rm-label">2027 — Enterprise &amp; Intelligence</div>
+      <div class="rm-title">AI + Scale</div>
+      <ul class="rm-features">
+        <li>AI-generated meeting agendas from context</li>
+        <li>Post-meeting summary &amp; action-item extraction</li>
+        <li>SSO (SAML / OKTA) enterprise login</li>
+        <li>Public booking page (Calendly-style)</li>
+        <li>REST API for third-party integrations &amp; white-label</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── BUSINESS OPPORTUNITY ── -->
+  <div style="margin-top:11px;">
+    <div class="two-col" style="gap:8px;">
+      <div class="card" style="background:linear-gradient(135deg,#ede9fe,#dbeafe);border-color:#c4b5fd;">
+        <div class="card-title" style="color:#4338ca;">Business Opportunity</div>
+        <div class="card-body" style="color:#3730a3;">
+          The AI scheduling market is growing rapidly. SchedulerAI targets knowledge workers (100M+ globally) who waste 4–6 hours/week on manual scheduling. At $9/user/month, 1,000 Pro users = <strong>$108K ARR</strong> at 77%+ gross margin. Multi-platform support (Teams + Outlook) now unlocks the enterprise Microsoft ecosystem — a much larger TAM than Google-only tools.
+        </div>
+      </div>
+      <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-color:#bbf7d0;">
+        <div class="card-title" style="color:#15803d;">Competitive Advantages</div>
+        <div class="card-body" style="color:#166534;">
+          <ul style="padding-left:13px;">
+            <li>No rigid forms — 100% conversational, plain English input</li>
+            <li>Supports Google <em>and</em> Microsoft ecosystems simultaneously</li>
+            <li>4 AI providers — swap cost vs. quality with one env var</li>
+            <li>Admin-controlled, per-org provider configuration</li>
+            <li>Ultra-low marginal cost (~$0.05 / 100 meetings on Groq)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer page 3 -->
+  <div class="footer">
+    <span>SchedulerAI — Confidential Product Overview v2 &nbsp;·&nbsp; Prepared by Biswajit Singha</span>
+    <span>June 2026 &nbsp;·&nbsp; Page 3 of 3</span>
+  </div>
+</div>
+
+</body>
+</html>

@@ -127,7 +127,13 @@ class MeetingService {
         const name = field.replace('email_', '');
         updated.participant_emails[name] = value;
       } else if (field === 'date') {
-        updated.date = DateParser.parseRelativeDate(value) || value;
+        const parsedDate = DateParser.parseRelativeDate(value);
+        updated.date = parsedDate || value;
+        // Also extract an embedded time (e.g. "today at 2:30 pm") so it isn't lost
+        if (!updated.time) {
+          const embeddedTime = DateParser.parseTime(value);
+          if (embeddedTime) updated.time = embeddedTime;
+        }
       } else if (field === 'time') {
         updated.time = DateParser.parseTime(value) || value;
       } else if (field === 'duration') {
@@ -140,29 +146,48 @@ class MeetingService {
 
   // ─── Calendar + Scheduling ─────────────────────────────────────────────────
 
-  async checkCalendarAvailability(date, durationMinutes, authClient) {
-    return ConflictService.getAvailability(date, durationMinutes, authClient);
+  async checkCalendarAvailability(date, durationMinutes, authClient, calendarService) {
+    return ConflictService.getAvailability(date, durationMinutes, authClient, calendarService);
   }
 
-  async findAvailableSlots(date, durationMinutes, authClient) {
+  async findAvailableSlots(date, durationMinutes, authClient, calendarService) {
     const { availableSlots, busySlots, demo } = await ConflictService.getAvailability(
       date,
       durationMinutes,
-      authClient
+      authClient,
+      calendarService
     );
     return { availableSlots, busySlots, demo };
   }
 
-  async smartSuggestSlots(date, requestedTime, durationMinutes, authClient) {
-    const { busySlots, demo } = await ConflictService.getAvailability(date, durationMinutes, authClient);
+  // Check availability across both Google Calendar and Outlook Calendar.
+  async findAvailableSlotsFromBoth(date, durationMinutes, googleClient, googleService, outlookToken, outlookService) {
+    const { availableSlots, busySlots, demo } = await ConflictService.getAvailabilityFromBoth(
+      date, durationMinutes, googleClient, googleService, outlookToken, outlookService
+    );
+    return { availableSlots, busySlots, demo };
+  }
+
+  async smartSuggestSlots(date, requestedTime, durationMinutes, authClient, calendarService) {
+    const { busySlots, demo } = await ConflictService.getAvailability(
+      date, durationMinutes, authClient, calendarService
+    );
     const result = SmartSlotService.checkAndSuggest(requestedTime, busySlots, date, durationMinutes);
     return { ...result, demo };
   }
 
-  async createGoogleMeeting(meeting, slot, authClient, zoomAccessToken) {
+  async smartSuggestSlotsFromBoth(date, requestedTime, durationMinutes, googleClient, googleService, outlookToken, outlookService) {
+    const { busySlots, demo } = await ConflictService.getAvailabilityFromBoth(
+      date, durationMinutes, googleClient, googleService, outlookToken, outlookService
+    );
+    const result = SmartSlotService.checkAndSuggest(requestedTime, busySlots, date, durationMinutes);
+    return { ...result, demo };
+  }
+
+  async createGoogleMeeting(meeting, slot, authClient, zoomAccessToken, calendarService) {
     const platform = meeting.platform || 'google_meet';
     const provider = PlatformFactory.create(platform);
-    const event = await provider.createMeeting(meeting, slot, authClient, zoomAccessToken);
+    const event = await provider.createMeeting(meeting, slot, authClient, zoomAccessToken, calendarService);
     return event;
   }
 

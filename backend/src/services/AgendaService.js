@@ -1,19 +1,20 @@
 const DateParser = require('../utils/DateParser');
 const SlotFinder = require('../utils/SlotFinder');
 const CalendarService = require('./CalendarService');
+const OutlookCalendarService = require('./OutlookCalendarService');
 
 const WORK_START = 7 * 60;   // 7:00 AM
 const WORK_END   = 22 * 60;  // 10:00 PM
 
 class AgendaService {
-  async getTodayAgenda(authClient, timeZone) {
+  async getTodayAgenda(authClient, timeZone, calendarService = CalendarService) {
     const today = DateParser.toISODate(new Date(), timeZone || null);
-    return this.getAgenda(today, authClient, timeZone);
+    return this.getAgenda(today, authClient, timeZone, calendarService);
   }
 
-  async getAgenda(date, authClient, timeZone) {
+  async getAgenda(date, authClient, timeZone, calendarService = CalendarService) {
     const target = date || DateParser.toISODate(new Date(), timeZone || null);
-    const { busySlots, demo } = await this._getBusySlots(target, authClient, timeZone);
+    const { busySlots, demo } = await this._getBusySlots(target, authClient, timeZone, calendarService);
     const freeSlots = this._toFreeRanges(busySlots, target);
 
     return {
@@ -26,9 +27,42 @@ class AgendaService {
     };
   }
 
-  async _getBusySlots(date, authClient, timeZone) {
+  async getAgendaFromBoth(date, googleClient, outlookToken, timeZone) {
+    const target = date || DateParser.toISODate(new Date(), timeZone || null);
+
+    const [googleResult, outlookResult] = await Promise.allSettled([
+      googleClient
+        ? CalendarService.getEvents(target, googleClient, timeZone)
+        : Promise.resolve({ busySlots: [], demo: false }),
+      outlookToken
+        ? OutlookCalendarService.getEvents(target, outlookToken, timeZone)
+        : Promise.resolve({ busySlots: [], demo: false }),
+    ]);
+
+    const googleSlots = googleResult.status === 'fulfilled' ? (googleResult.value.busySlots || []) : [];
+    const outlookSlots = outlookResult.status === 'fulfilled' ? (outlookResult.value.busySlots || []) : [];
+    const demo = !googleClient && !outlookToken;
+
+    const busySlots = [
+      ...googleSlots.map((s) => ({ ...s, calendarSource: 'google' })),
+      ...outlookSlots.map((s) => ({ ...s, calendarSource: 'outlook' })),
+    ];
+
+    const freeSlots = this._toFreeRanges(busySlots, target);
+
+    return {
+      date: target,
+      dateDisplay: DateParser.formatDateDisplay(target),
+      meetings: this._toMeetingList(busySlots),
+      freeSlots,
+      upcomingTasks: [],
+      demo,
+    };
+  }
+
+  async _getBusySlots(date, authClient, timeZone, calendarService = CalendarService) {
     try {
-      const result = await CalendarService.getEvents(date, authClient, timeZone);
+      const result = await calendarService.getEvents(date, authClient, timeZone);
       return { busySlots: result.busySlots || [], demo: result.demo };
     } catch {
       return { busySlots: SlotFinder.getMockBusySlots(date), demo: true };

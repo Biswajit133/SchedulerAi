@@ -149,7 +149,11 @@ function ChatMessage({ msg, onSelectSlot, onSelectPlatform, onConfirmDirect, onS
 
         {/* Platform selection */}
         {msg.type === 'platform-selection' && (
-          <PlatformSelectionCard onSelect={onSelectPlatform} />
+          <PlatformSelectionCard
+            platforms={msg.platforms || []}
+            defaultProvider={msg.defaultProvider || null}
+            onSelect={(id, label) => onSelectPlatform(id, label)}
+          />
         )}
 
         {/* Scheduled confirmation */}
@@ -265,6 +269,17 @@ function MeetingListPicker({ meetings }) {
 
 // ─── Confirmation card ────────────────────────────────────────────────────────
 
+const JOIN_LABELS = {
+  zoom:        'Join Zoom Meeting',
+  teams:       'Join Teams Meeting',
+  webex:       'Join Webex Meeting',
+  google_meet: 'Join Google Meet',
+};
+
+function joinLinkLabel(platform) {
+  return JOIN_LABELS[platform] || 'Join Meeting';
+}
+
 function ConfirmationCard({ summary, onShowToast }) {
   const [savedContacts, setSavedContacts] = useState(null);
   const [checked, setChecked] = useState({});
@@ -345,8 +360,13 @@ function ConfirmationCard({ summary, onShowToast }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-brand-400 text-xs hover:text-brand-300 transition-colors mt-1"
           >
-            {summary.platform === 'zoom' ? 'Join Zoom Meeting →' : 'Join Google Meet →'}
+            {joinLinkLabel(summary.platform)} →
           </a>
+        )}
+        {!summary.meetLink && !summary.demo && summary.platform === 'teams' && (
+          <p className="text-yellow-500/80 text-xs mt-1">
+            No Teams join link generated. Microsoft Teams requires a work/school Microsoft 365 account with Teams enabled. Reconnect Teams if you just updated permissions.
+          </p>
         )}
         {summary.calendarLink && !summary.demo && (
           <a
