@@ -16,7 +16,7 @@ const emailProvider     = require('./EmailAuthProvider');
 // Default enabled state — overridden by ProviderSettings in DB when available.
 const DEFAULT_ENABLED = {
   google:    true,
-  microsoft: true,
+  microsoft: false,
   github:    false,
   linkedin:  false,
   email:     false,
