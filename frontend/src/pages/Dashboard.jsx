@@ -4,16 +4,17 @@ import ChatInterface from '../components/ChatInterface';
 import AgendaCard from '../components/AgendaCard';
 import StatsBar from '../components/dashboard/StatsBar';
 import ToastContainer from '../components/ui/ToastContainer';
-import { AuthAPI, ZoomAuthAPI } from '../services/api';
+import SignInCard from '../components/SignInCard';
+import { AuthAPI, ZoomAuthAPI, TeamsAuthAPI, IntegrationAPI } from '../services/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [auth, setAuth] = useState({ checked: false, authenticated: false, user: null });
-  const [zoom, setZoom] = useState({ authenticated: false, user: null });
+  const [integrations, setIntegrations] = useState(null); // full summary from GET /api/integrations
   const [error, setError] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [zoomConnecting, setZoomConnecting] = useState(false);
-  const [zoomDisconnecting, setZoomDisconnecting] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState(null); // provider id being connected
+  const [disconnectingProvider, setDisconnectingProvider] = useState(null);
   const [toasts, setToasts] = useState([]);
 
   const showToast = useCallback((message, type = 'info') => {
@@ -26,46 +27,72 @@ export default function Dashboard() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const fetchZoomStatus = () => {
-    ZoomAuthAPI.getStatus()
-      .then((res) => setZoom({ authenticated: res.authenticated, user: res.user }))
-      .catch(() => setZoom({ authenticated: false, user: null }));
-  };
+  const fetchIntegrations = useCallback(() => {
+    IntegrationAPI.getConnected()
+      .then((res) => setIntegrations(res))
+      .catch(() => setIntegrations(null));
+  }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
     AuthAPI.getMe()
       .then((res) => setAuth({ checked: true, authenticated: res.authenticated, user: res.user }))
       .catch(() => setAuth({ checked: true, authenticated: false, user: null }));
+    fetchIntegrations();
 
-    fetchZoomStatus();
+    // After any OAuth callback, check if the user came from /settings and redirect back
+    const returnTo = sessionStorage.getItem('authReturnTo');
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('auth') === 'success') {
-      window.history.replaceState({}, '', window.location.pathname);
-      AuthAPI.getMe()
-        .then((res) => setAuth({ checked: true, authenticated: res.authenticated, user: res.user }))
-        .catch(() => {});
-    } else if (params.get('auth') === 'error') {
+    if (params.get('auth') === 'error') {
       const reason = params.get('reason') || 'unknown error';
-      showToast(`Google sign-in failed: ${reason}`, 'error');
+      showToast(`Sign-in failed: ${reason}`, 'error');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('zoom_auth') === 'success') {
       window.history.replaceState({}, '', window.location.pathname);
-      fetchZoomStatus();
+      fetchIntegrations();
+      if (returnTo) { sessionStorage.removeItem('authReturnTo'); navigate(returnTo); return; }
       showToast('Zoom connected successfully!', 'success');
     } else if (params.get('zoom_auth') === 'error') {
       const reason = params.get('reason') || 'unknown error';
-      showToast(`Zoom sign-in failed: ${reason}`, 'error');
+      showToast(`Zoom connection failed: ${reason}`, 'error');
       window.history.replaceState({}, '', window.location.pathname);
+      if (returnTo) { sessionStorage.removeItem('authReturnTo'); navigate(returnTo); return; }
+    } else if (params.get('teams_auth') === 'success') {
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchIntegrations();
+      if (returnTo) { sessionStorage.removeItem('authReturnTo'); navigate(returnTo); return; }
+      showToast('Microsoft Teams connected successfully!', 'success');
+    } else if (params.get('teams_auth') === 'error') {
+      const reason = params.get('reason') || 'unknown error';
+      showToast(`Teams connection failed: ${reason}`, 'error');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (returnTo) { sessionStorage.removeItem('authReturnTo'); navigate(returnTo); return; }
     }
-  }, [showToast]);
+  }, [showToast, fetchIntegrations, navigate]);
 
-  const handleLogin = async () => {
-    try {
-      const res = await AuthAPI.getGoogleAuthUrl();
-      window.location.href = res.url;
-    } catch {
-      showToast('Google OAuth not configured. Add GOOGLE_CLIENT_ID to backend .env', 'error');
+  // Called from LoginScreen — routes to the correct OAuth URL for the chosen provider.
+  // Re-throws on failure so LoginScreen can reset its loading state.
+  const handleSignIn = async (providerId) => {
+    if (providerId === 'google') {
+      try {
+        const res = await AuthAPI.getGoogleAuthUrl();
+        window.location.href = res.url;
+      } catch (err) {
+        showToast('Could not connect to the sign-in service. Please try again.', 'error');
+        throw err;
+      }
+    } else if (providerId === 'microsoft') {
+      try {
+        const res = await AuthAPI.getMicrosoftAuthUrl();
+        window.location.href = res.url;
+      } catch (err) {
+        showToast('Could not connect to Microsoft. Please try again.', 'error');
+        throw err;
+      }
+    } else {
+      showToast(`${providerId} sign-in is not yet implemented.`, 'info');
+      throw new Error('not-implemented');
     }
   };
 
@@ -74,6 +101,7 @@ export default function Dashboard() {
     try {
       await AuthAPI.logout();
       setAuth({ checked: true, authenticated: false, user: null });
+      setIntegrations(null);
     } catch {
       setAuth({ checked: true, authenticated: false, user: null });
     } finally {
@@ -81,31 +109,46 @@ export default function Dashboard() {
     }
   };
 
-  const handleConnectZoom = async () => {
-    setZoomConnecting(true);
+  // Connect a meeting integration by provider id
+  const handleConnect = async (providerId) => {
+    setConnectingProvider(providerId);
     try {
-      const res = await ZoomAuthAPI.getAuthUrl();
-      window.location.href = res.url;
+      if (providerId === 'zoom') {
+        const res = await ZoomAuthAPI.getAuthUrl();
+        window.location.href = res.url;
+      } else if (providerId === 'teams') {
+        const res = await TeamsAuthAPI.getAuthUrl();
+        window.location.href = res.url;
+      } else {
+        showToast(`${providerId} OAuth is not yet implemented.`, 'info');
+        setConnectingProvider(null);
+      }
     } catch {
-      showToast('Zoom OAuth not configured. Add ZOOM_CLIENT_ID to backend .env', 'error');
-      setZoomConnecting(false);
+      showToast(`${providerId} OAuth not configured.`, 'error');
+      setConnectingProvider(null);
     }
   };
 
-  const handleDisconnectZoom = async () => {
+  // Disconnect a meeting integration by provider id
+  const handleDisconnect = async (providerId) => {
+    const label = integrations?.meetingProviders?.find((p) => p.id === providerId)?.label || providerId;
     const confirmed = window.confirm(
-      'Disconnect Zoom?\n\nThis will remove your Zoom account and all saved tokens. You can reconnect anytime.'
+      `Disconnect ${label}?\n\nThis will remove your saved tokens. You can reconnect anytime.`
     );
     if (!confirmed) return;
 
-    setZoomDisconnecting(true);
+    setDisconnectingProvider(providerId);
     try {
-      await ZoomAuthAPI.disconnect();
-      setZoom({ authenticated: false, user: null });
+      if (providerId === 'zoom') {
+        await ZoomAuthAPI.disconnect();
+      } else if (providerId === 'teams') {
+        await TeamsAuthAPI.disconnect();
+      }
+      fetchIntegrations();
     } catch {
-      setZoom({ authenticated: false, user: null });
+      fetchIntegrations();
     } finally {
-      setZoomDisconnecting(false);
+      setDisconnectingProvider(null);
     }
   };
 
@@ -123,7 +166,7 @@ export default function Dashboard() {
   }
 
   if (!auth.authenticated) {
-    return <LoginScreen onLogin={handleLogin} error={error} onDismissError={() => setError(null)} onGoHome={() => navigate('/')} />;
+    return <LoginScreen onSignIn={handleSignIn} error={error} onDismissError={() => setError(null)} onGoHome={() => navigate('/')} />;
   }
 
   return (
@@ -141,40 +184,15 @@ export default function Dashboard() {
 
           {/* User + logout */}
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-sm text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Calendar connected
-            </span>
+            {/* Dynamic integration pills */}
+            <IntegrationPills
+              integrations={integrations}
+              connectingProvider={connectingProvider}
+              disconnectingProvider={disconnectingProvider}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+            />
 
-            {/* Zoom connection */}
-            {zoom.authenticated ? (
-              <div className="flex items-center gap-2 pl-3 border-l border-slate-700">
-                <ZoomIcon className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="text-blue-400 text-sm hidden sm:block">
-                  {zoom.user?.name || zoom.user?.email || 'Zoom connected'}
-                </span>
-                <button
-                  onClick={handleDisconnectZoom}
-                  disabled={zoomDisconnecting}
-                  title="Disconnect Zoom"
-                  className="text-slate-500 hover:text-slate-300 text-xs px-2 py-1 rounded-lg
-                    hover:bg-slate-800 transition-colors disabled:opacity-50"
-                >
-                  {zoomDisconnecting ? '…' : '✕'}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleConnectZoom}
-                disabled={zoomConnecting}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border
-                  border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors
-                  disabled:opacity-50 pl-3 border-l border-slate-700 ml-0"
-              >
-                <ZoomIcon className="w-3.5 h-3.5 shrink-0" />
-                {zoomConnecting ? 'Connecting…' : 'Connect Zoom'}
-              </button>
-            )}
             {auth.user && (
               <div className="flex items-center gap-2 pl-3 border-l border-slate-700">
                 {auth.user.picture ? (
@@ -193,6 +211,24 @@ export default function Dashboard() {
                   {auth.user.name || auth.user.email}
                 </span>
               </div>
+            )}
+            <button
+              onClick={() => navigate('/settings')}
+              className="text-slate-400 hover:text-white text-xs px-3 py-1.5 rounded-lg
+                bg-slate-800 hover:bg-slate-700 transition-colors"
+              title="Account & Integrations"
+            >
+              Settings
+            </button>
+            {auth.user?.isAdmin && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="text-amber-500/80 hover:text-amber-400 text-xs px-3 py-1.5 rounded-lg
+                  bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-colors"
+                title="Admin Settings"
+              >
+                Admin
+              </button>
             )}
             <button
               onClick={handleLogout}
@@ -229,16 +265,33 @@ export default function Dashboard() {
 
 // ─── Login screen ─────────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin, error, onDismissError, onGoHome }) {
+function LoginScreen({ onSignIn, error, onDismissError, onGoHome }) {
+  const [signingIn, setSigningIn] = useState(false);
+
+  const handleSignIn = async (providerId) => {
+    setSigningIn(true);
+    try {
+      await onSignIn(providerId);
+      // On success, onSignIn sets window.location.href so the page navigates away.
+      // Keep spinner active so the button stays locked during the redirect.
+    } catch {
+      setSigningIn(false);
+    }
+  };
+
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-950 px-4">
-      <button onClick={onGoHome} className="absolute top-6 left-6 text-slate-500 hover:text-slate-300 text-sm flex items-center gap-1.5 transition-colors">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 px-4">
+      <button
+        onClick={onGoHome}
+        className="absolute top-6 left-6 text-slate-500 hover:text-slate-300 text-sm
+          flex items-center gap-1.5 transition-colors"
+      >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Home
       </button>
-      {/* Card */}
+
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
         <div className="text-center space-y-3">
@@ -247,18 +300,17 @@ function LoginScreen({ onLogin, error, onDismissError, onGoHome }) {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">SchedulerAI</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              AI-powered meeting scheduler
-            </p>
+            <p className="text-slate-400 text-sm mt-1">Sign in to schedule your first meeting</p>
           </div>
         </div>
 
-        {/* Features */}
+        {/* Features list */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
           {[
             ['Schedule meetings with plain English', '💬'],
-            ['Checks your Google Calendar availability', '📅'],
+            ['Reads your calendar availability live', '📅'],
             ['Sends invites automatically', '✉️'],
+            ['Supports Google Meet, Zoom & more', '🎥'],
           ].map(([text, icon]) => (
             <div key={text} className="flex items-center gap-3 text-sm text-slate-300">
               <span className="text-base shrink-0">{icon}</span>
@@ -267,20 +319,12 @@ function LoginScreen({ onLogin, error, onDismissError, onGoHome }) {
           ))}
         </div>
 
-        {/* Sign in */}
-        <div className="space-y-3">
-          <button
-            onClick={onLogin}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100
-              text-slate-900 font-semibold py-3 px-4 rounded-xl transition-colors shadow-lg
-              text-sm"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
-          <p className="text-slate-600 text-xs text-center">
-            Your data stays in your Google Calendar.
+        {/* Multi-provider sign-in */}
+        <div>
+          <p className="text-slate-500 text-xs uppercase tracking-wider text-center mb-4 font-semibold">
+            Choose sign-in method
           </p>
+          <SignInCard onSignIn={handleSignIn} loading={signingIn} />
         </div>
 
         {/* Error */}
@@ -291,6 +335,10 @@ function LoginScreen({ onLogin, error, onDismissError, onGoHome }) {
             <button onClick={onDismissError} className="text-red-500 shrink-0 text-xs">✕</button>
           </div>
         )}
+
+        <p className="text-slate-600 text-xs text-center">
+          Your calendar data stays in your account. We never store meeting content.
+        </p>
       </div>
     </div>
   );
@@ -322,6 +370,80 @@ function TipsCard() {
   );
 }
 
+// ─── Integration pills (navbar) ───────────────────────────────────────────────
+// Shows a pill for each AVAILABLE meeting provider: connected = full color, else "Connect X" button.
+// Unimplemented providers (available: false) are not shown in the navbar.
+
+const PILL_STYLE = {
+  google_meet: { color: 'text-teal-400', border: 'border-teal-500/30', dot: 'bg-teal-500' },
+  zoom:        { color: 'text-blue-400',  border: 'border-blue-500/30',  dot: 'bg-blue-500' },
+  teams:       { color: 'text-indigo-400', border: 'border-indigo-500/30', dot: 'bg-indigo-500' },
+  webex:       { color: 'text-green-400', border: 'border-green-500/30', dot: 'bg-green-500' },
+};
+
+function IntegrationPills({ integrations, connectingProvider, disconnectingProvider, onConnect, onDisconnect }) {
+  if (!integrations) return null;
+
+  // Always show the calendar connection status
+  const calConnected = integrations.calendarProviders?.some((p) => p.connected);
+  const calLabel = integrations.calendarProviders?.find((p) => p.connected)?.label || 'Calendar';
+
+  // Only show available (implemented) meeting providers
+  const meetingProviders = (integrations.meetingProviders || []).filter((p) => p.available);
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Calendar status pill */}
+      {calConnected && (
+        <span className="hidden sm:flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          {calLabel}
+        </span>
+      )}
+
+      <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-slate-700">
+        {meetingProviders.map((p) => {
+          const s = PILL_STYLE[p.id] || PILL_STYLE.zoom;
+          const isConnecting = connectingProvider === p.id;
+          const isDisconnecting = disconnectingProvider === p.id;
+
+          if (p.connected) {
+            return (
+              <div key={p.id} className={`flex items-center gap-1.5 text-xs ${s.color} border ${s.border} px-2 py-1 rounded-full`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                <span className="hidden md:inline">{p.label}</span>
+                <button
+                  onClick={() => onDisconnect(p.id)}
+                  disabled={isDisconnecting}
+                  title={`Disconnect ${p.label}`}
+                  className="ml-0.5 text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40 leading-none"
+                >
+                  {isDisconnecting ? '…' : '✕'}
+                </button>
+              </div>
+            );
+          }
+
+          // Google Meet doesn't have its own connect button (piggybacks Google Calendar)
+          if (p.id === 'google_meet') return null;
+
+          return (
+            <button
+              key={p.id}
+              onClick={() => onConnect(p.id)}
+              disabled={!!connectingProvider}
+              className={`flex items-center gap-1.5 text-xs ${s.color} border ${s.border}
+                px-2.5 py-1 rounded-full hover:bg-slate-800 transition-colors disabled:opacity-50`}
+            >
+              {isConnecting ? 'Connecting…' : `+ ${p.label}`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
 function CalendarIcon({ className }) {
@@ -333,21 +455,3 @@ function CalendarIcon({ className }) {
   );
 }
 
-function ZoomIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4.5 8.25A3.75 3.75 0 018.25 4.5h7.5A3.75 3.75 0 0119.5 8.25v7.5a3.75 3.75 0 01-3.75 3.75h-7.5A3.75 3.75 0 014.5 15.75v-7.5zm10.5 1.125v5.25l3.75 2.25V7.125L15 9.375z" />
-    </svg>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-    </svg>
-  );
-}

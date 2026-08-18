@@ -3,7 +3,7 @@ const MeetingPlatformProvider = require('./MeetingPlatformProvider');
 const CalendarService = require('../services/CalendarService');
 
 class ZoomProvider extends MeetingPlatformProvider {
-  async createMeeting(meeting, slot, authClient, zoomAccessToken) {
+  async createMeeting(meeting, slot, authClient, zoomAccessToken, calendarService = CalendarService) {
     if (!zoomAccessToken) {
       throw new Error('Zoom is not connected. Please connect your Zoom account first.');
     }
@@ -14,8 +14,7 @@ class ZoomProvider extends MeetingPlatformProvider {
     const joinUrl = zoomMeeting.join_url;
     const platformMeetingId = String(zoomMeeting.id);
 
-    // Always create a Google Calendar event — Zoom link goes in description
-    const event = await CalendarService.createEvent(meeting, slot, authClient, {
+    const event = await calendarService.createEvent(meeting, slot, authClient, {
       platform: 'zoom',
       meetingLink: joinUrl,
       platformMeetingId,
@@ -31,6 +30,18 @@ class ZoomProvider extends MeetingPlatformProvider {
       status: event.status,
       demo: event.demo,
     };
+  }
+
+  async updateMeeting(eventId, updates, authClient) {
+    return CalendarService.updateEvent(eventId, updates, authClient);
+  }
+
+  async cancelMeeting(eventId, authClient) {
+    return CalendarService.deleteEvent(eventId, authClient);
+  }
+
+  async getMeetingDetails(eventId, authClient) {
+    return CalendarService.getEvent(eventId, authClient);
   }
 
   _createZoomMeeting(token, meeting, slot, timeZone = 'UTC') {

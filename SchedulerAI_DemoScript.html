@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SchedulerAI — Client Demo Script</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #273549;
+      --border: #334155;
+      --accent: #6366f1;
+      --accent2: #22d3ee;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* ── TOP HEADER ── */
+    .hero {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #0c1a2e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 40px 36px;
+      text-align: center;
+    }
+    .hero .badge {
+      display: inline-block;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.4);
+      color: #a5b4fc;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, #6366f1, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .hero p {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    .meta-row {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .meta-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .meta-chip span { color: var(--text); font-weight: 600; }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* ── SECTION ── */
+    .section { margin-top: 48px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-num {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .section-header h2 { font-size: 1.25rem; font-weight: 700; }
+    .section-header .sub { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 14px;
+    }
+    .card p { color: #cbd5e1; }
+
+    /* ── SCRIPT BLOCK ── */
+    .script-block {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 10px 0;
+      font-style: italic;
+      color: #e2e8f0;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .script-block::before {
+      content: '🎤 Say:';
+      display: block;
+      font-style: normal;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    /* ── STEPS ── */
+    .steps { counter-reset: step; }
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 18px;
+      counter-increment: step;
+    }
+    .step-num {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .step-content h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .step-content p { font-size: 13px; color: #94a3b8; }
+
+    /* ── TABLE ── */
+    .tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--surface2); }
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    td {
+      padding: 11px 16px;
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+      color: #cbd5e1;
+      vertical-align: top;
+    }
+    td:first-child { color: var(--text); font-weight: 600; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── PILL TAGS ── */
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-green { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .pill-yellow { background: rgba(245,158,11,0.15); color: #fcd34d; }
+    .pill-blue { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .pill-cyan { background: rgba(34,211,238,0.15); color: #67e8f9; }
+
+    /* ── PROMPT BOX ── */
+    .prompt-box {
+      background: #020817;
+      border: 1px solid #1e40af;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: 'Courier New', monospace;
+      font-size: 12.5px;
+      color: #93c5fd;
+      line-height: 1.9;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    .prompt-box .comment { color: #475569; }
+    .prompt-box .key { color: #34d399; }
+    .prompt-box .val { color: #fbbf24; }
+
+    /* ── ACCORDION Q&A ── */
+    .qa-list { display: flex; flex-direction: column; gap: 10px; }
+    details {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    details[open] { border-color: var(--accent); }
+    summary {
+      padding: 16px 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: '+';
+      font-size: 20px;
+      color: var(--accent);
+      font-weight: 300;
+      transition: transform 0.2s;
+    }
+    details[open] summary::after { content: '−'; }
+    .qa-body {
+      padding: 0 20px 18px;
+      border-top: 1px solid var(--border);
+      font-size: 13.5px;
+      color: #cbd5e1;
+      line-height: 1.8;
+    }
+    .qa-body p { margin-top: 12px; }
+    .qa-body .tbl-wrap { margin-top: 14px; }
+    .qa-body .script-block { margin-top: 12px; }
+    .qa-body ul { margin: 12px 0 0 20px; }
+    .qa-body li { margin-bottom: 6px; }
+
+    /* ── GRID ── */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+    .mini-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .mini-card h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+    .mini-card p { font-size: 13px; color: #e2e8f0; }
+    .big-num { font-size: 2rem; font-weight: 800; color: var(--accent2); line-height: 1; }
+
+    /* ── TIPS ── */
+    .tip-list { display: flex; flex-direction: column; gap: 8px; }
+    .tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+    .tip-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+
+    /* ── ROADMAP ── */
+    .roadmap-item {
+      display: flex;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .roadmap-item:last-child { border-bottom: none; }
+    .roadmap-phase {
+      width: 80px;
+      flex-shrink: 0;
+    }
+    .roadmap-phase .label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .roadmap-phase .when { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .roadmap-content h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .roadmap-content p { font-size: 12px; color: var(--muted); }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15,23,42,0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .toolbar-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: auto;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .btn-outline {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--muted);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--text); }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #4f46e5; }
+
+    /* ── PRINT ── */
+    @media print {
+      .toolbar { display: none !important; }
+      body { background: white !important; color: #111 !important; font-size: 12px !important; }
+      .hero {
+        background: #f0f4ff !important;
+        border-color: #c7d2fe !important;
+        padding: 28px 24px 20px !important;
+      }
+      .hero h1 {
+        -webkit-text-fill-color: #1e293b !important;
+        background: none !important;
+        color: #1e293b !important;
+        font-size: 1.8rem !important;
+      }
+      .hero p { color: #475569 !important; }
+      .meta-chip { background: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #475569 !important; }
+      .meta-chip span { color: #0f172a !important; }
+
+      .card, .mini-card { background: #f8fafc !important; border-color: #e2e8f0 !important; }
+      .card p, .mini-card p { color: #334155 !important; }
+
+      /* Force ALL details open in print — content visible regardless of open state */
+      details { display: block !important; background: #f8fafc !important; border-color: #e2e8f0 !important; break-inside: avoid !important; }
+      details .qa-body { display: block !important; padding: 10px 16px 14px !important; color: #334155 !important; }
+      summary { background: #f1f5f9 !important; color: #0f172a !important; border-bottom: 1px solid #e2e8f0 !important; }
+      summary::after { display: none !important; }
+
+      .script-block { background: #f0f4ff !important; border-color: #6366f1 !important; color: #1e1b4b !important; }
+      .script-block::before { color: #4f46e5 !important; }
+      .prompt-box { background: #f0f9ff !important; color: #1e40af !important; border-color: #bfdbfe !important; }
+      .prompt-box .key { color: #065f46 !important; }
+      .prompt-box .val { color: #92400e !important; }
+      .prompt-box .comment { color: #94a3b8 !important; }
+
+      .section-num { background: #6366f1 !important; color: white !important; }
+      .step-num { background: #6366f1 !important; color: white !important; }
+
+      thead { background: #e0e7ff !important; }
+      th { color: #3730a3 !important; }
+      td { color: #1e293b !important; border-color: #e2e8f0 !important; }
+      td:first-child { color: #0f172a !important; }
+      .tbl-wrap { border-color: #e2e8f0 !important; }
+
+      .tip { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #1e293b !important; }
+      .roadmap-item { border-color: #e2e8f0 !important; }
+      .roadmap-content h4 { color: #0f172a !important; }
+      .roadmap-content p { color: #475569 !important; }
+
+      p, h4, li, .step-content p, .qa-body li, .roadmap-phase .when { color: #334155 !important; }
+      .big-num { color: #4f46e5 !important; }
+      .mini-card h4 { color: #475569 !important; }
+      .section-header h2 { color: #0f172a !important; }
+      .section-header .sub { color: #64748b !important; }
+
+      .pill-green { background: #d1fae5 !important; color: #065f46 !important; }
+      .pill-yellow { background: #fef3c7 !important; color: #92400e !important; }
+
+      .container { padding-bottom: 20px !important; }
+      .section { margin-top: 28px !important; }
+      /* intro card print fix */
+      [style*="linear-gradient(135deg, rgba(99,102,241"] {
+        background: #f0f4ff !important;
+        border-color: #c7d2fe !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="toolbar-label">SchedulerAI — Demo Script</span>
+  <button class="btn btn-outline" id="btnToggle" onclick="toggleAll()">Expand All</button>
+  <button class="btn btn-primary" onclick="printPDF()">&#128438; Save as PDF</button>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="badge">Client Demo Script</div>
+  <h1>SchedulerAI</h1>
+  <p>AI-Powered Meeting Scheduling Assistant — Full Demo Guide for USA Client</p>
+  <div class="meta-row">
+    <div class="meta-chip">Prepared by <span>Biswajit Singha</span></div>
+    <div class="meta-chip">Stack <span>React + Node.js + MongoDB</span></div>
+    <div class="meta-chip">AI <span>Groq / OpenAI / Claude / Gemini</span></div>
+    <div class="meta-chip">Date <span>June 2026</span></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ══════════════════════════════════════════
+       WHAT IS SCHEDULERAI — SHORT INTRO CARD
+  ══════════════════════════════════════════ -->
+  <div style="margin-top: 40px;">
+    <div style="
+      background: linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(34,211,238,0.08) 100%);
+      border: 1px solid rgba(99,102,241,0.35);
+      border-radius: 16px;
+      padding: 32px 36px;
+      position: relative;
+      overflow: hidden;
+    ">
+      <!-- Decorative glow -->
+      <div style="
+        position: absolute; top: -40px; right: -40px;
+        width: 180px; height: 180px;
+        background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+        border-radius: 50%; pointer-events: none;
+      "></div>
+
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+        <div style="
+          background: linear-gradient(135deg,#6366f1,#22d3ee);
+          border-radius: 10px; width:36px; height:36px;
+          display:flex; align-items:center; justify-content:center;
+          font-size:18px; flex-shrink:0;
+        ">&#128197;</div>
+        <div>
+          <p style="font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#a5b4fc; font-weight:700; margin-bottom:2px;">Quick Introduction</p>
+          <h2 style="font-size:1.3rem; font-weight:800; color:#f1f5f9;">What is SchedulerAI?</h2>
+        </div>
+      </div>
+
+      <!-- One-liner -->
+      <div style="
+        background: rgba(15,23,42,0.6);
+        border-left: 3px solid #22d3ee;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-bottom: 22px;
+      ">
+        <p style="font-size:1.05rem; font-weight:600; color:#e2e8f0; line-height:1.6;">
+          SchedulerAI is an <span style="color:#22d3ee;">AI-powered meeting scheduling assistant</span>
+          that lets you schedule, reschedule, and cancel meetings by
+          <span style="color:#a5b4fc;">typing one sentence in plain English</span> —
+          no forms, no calendar clicking, no manual invite sending.
+        </p>
+      </div>
+
+      <!-- 3-column simple breakdown -->
+      <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:14px; margin-bottom:22px;">
+        <div style="background:rgba(15,23,42,0.5); border:1px solid rgba(99,102,241,0.25); border-radius:10px; padding:16px; text-align:center;">
+          <div style="font-size:26px; margin-bottom:8px;">&#128490;</div>
+          <p style="font-size:12px; font-weight:700; color:#f1f5f9; margin-bottom:4px;">You Type</p>
+          <p style="font-size:11px; color:#94a3b8; line-height:1.5;">"Schedule a call with John tomorrow at 3 PM"</p>
+        </div>
+        <div style="background:rgba(15,23,42,0.5); border:1px solid rgba(99,102,241,0.25); border-radius:10px; padding:16px; text-align:center;">
+          <div style="font-size:26px; margin-bottom:8px;">&#129302;</div>
+          <p style="font-size:12px; font-weight:700; color:#f1f5f9; margin-bottom:4px;">AI Does Everything</p>
+          <p style="font-size:11px; color:#94a3b8; line-height:1.5;">Reads calendar, checks conflicts, picks platform, creates link</p>
+        </div>
+        <div style="background:rgba(15,23,42,0.5); border:1px solid rgba(16,185,129,0.35); border-radius:10px; padding:16px; text-align:center;">
+          <div style="font-size:26px; margin-bottom:8px;">&#9989;</div>
+          <p style="font-size:12px; font-weight:700; color:#10b981; margin-bottom:4px;">Meeting Created</p>
+          <p style="font-size:11px; color:#94a3b8; line-height:1.5;">Calendar event created, invites sent — in under 10 seconds</p>
+        </div>
+      </div>
+
+      <!-- Key facts row -->
+      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px;">
+        <span style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:20px; padding:5px 14px; font-size:12px; color:#a5b4fc; font-weight:600;">&#127381; Works with Google &amp; Outlook Calendar</span>
+        <span style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:20px; padding:5px 14px; font-size:12px; color:#a5b4fc; font-weight:600;">&#127909; Google Meet · Zoom · Teams</span>
+        <span style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:20px; padding:5px 14px; font-size:12px; color:#a5b4fc; font-weight:600;">&#129504; Powered by Groq · OpenAI · Claude · Gemini</span>
+        <span style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:5px 14px; font-size:12px; color:#6ee7b7; font-weight:600;">&#128274; OAuth 2.0 — No passwords stored</span>
+        <span style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:5px 14px; font-size:12px; color:#6ee7b7; font-weight:600;">&#9889; ~1,400 tokens per meeting</span>
+      </div>
+
+      <!-- Script to say -->
+      <div style="
+        background: #0d1117;
+        border: 1px solid var(--border);
+        border-left: 3px solid #6366f1;
+        border-radius: 8px;
+        padding: 16px 20px;
+        font-style: italic;
+        color: #e2e8f0;
+        font-size: 14px;
+        line-height: 1.8;
+      ">
+        <p style="font-style:normal; font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#6366f1; margin-bottom:8px;">&#127908; Say this to introduce the product:</p>
+        "SchedulerAI is a smart meeting assistant. Instead of opening your calendar, picking a time, creating a meeting link, and sending emails one by one — you just type what you want in one sentence.<br><br>
+        For example: <strong>'Schedule a product review with Sarah this Friday at 3 PM for one hour.'</strong><br><br>
+        The AI reads that sentence, checks your calendar, finds the free slot, creates the Google Meet or Zoom link, and sends the invites to Sarah — all automatically, in under 10 seconds.<br><br>
+        It works with Google Calendar, Microsoft Outlook, Zoom, Teams, and multiple AI providers. It is built for professionals who want to stop wasting time on scheduling and start spending that time on actual work."
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 0 — WEBPAGE WALKTHROUGH (BEFORE LOGIN)
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num" style="background: linear-gradient(135deg,#6366f1,#22d3ee); font-size:11px;">0</div>
+      <h2>Webpage Walkthrough <span class="sub">— open the browser and say this before anything else</span></h2>
+    </div>
+
+    <div class="card" style="border-color:var(--accent2); margin-bottom:20px;">
+      <p><strong style="color:var(--accent2);">How to use this section:</strong> &nbsp;Open the SchedulerAI website in your browser. Share your screen. Scroll slowly through each part of the page while saying the script below. Do NOT log in yet — show the entire landing page first.</p>
+    </div>
+
+    <!-- NAVBAR -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: Navigation Bar (top of the page)</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: SchedulerAI logo on the left, "Pricing", "Sign in", and "Get started free" button on the right.</p>
+      <div class="script-block">
+        "This is the SchedulerAI homepage. As you can see, it is a clean, professional web application.<br><br>
+        The navigation bar at the top has three things: a Pricing page, a Sign in button, and a 'Get started free' button. The app is free to start — no credit card required."
+      </div>
+    </div>
+
+    <!-- HERO -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: Hero Section — Big Headline</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: Large headline "Schedule any meeting in one sentence." with a purple glow effect and Get started button.</p>
+      <div class="script-block">
+        "The headline says it all: <strong>'Schedule any meeting in one sentence.'</strong><br><br>
+        Below it, the tagline explains: 'Describe your meeting in plain English. SchedulerAI reads your calendar, finds a free slot, and sends invites — automatically.'<br><br>
+        This is the core promise of the product. No forms, no manual calendar checking, no copying meeting links. One sentence and the system does everything."
+      </div>
+    </div>
+
+    <!-- MOCK CHAT DEMO -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: "See it in action" — Live Chat Preview</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: A dark chat UI. User bubble says "Schedule a product review with Sarah this Friday at 3pm for 1 hour." Then AI replies "Got it! Checking your calendar..." then "Meeting Scheduled!"</p>
+      <div class="script-block">
+        "This is a preview of the actual chat interface.<br><br>
+        Look at what the user typed: <strong>'Schedule a product review with Sarah this Friday at 3pm for 1 hour.'</strong><br><br>
+        That is the entire input. No separate form for the date, no dropdown for the time, no search for the participant.<br><br>
+        The AI immediately responds: 'Got it! Checking your calendar for Friday at 3 PM...'<br><br>
+        And then: <strong>'Meeting Scheduled!'</strong> — Product Review, Friday 3:00–4:00 PM, Sarah has been invited, Google Meet link created.<br><br>
+        This entire conversation takes less than 10 seconds."
+      </div>
+    </div>
+
+    <!-- FEATURES GRID -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: "Everything handled for you" — 6 Feature Cards</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: 6 cards — Plain English Input, Real Calendar Awareness, Automatic Invites, Smart Conflict Resolution, Priority Detection, AI Meeting Summaries.</p>
+      <div class="script-block">
+        "Scrolling down, we see the six core features.<br><br>
+        <strong>Plain English Input</strong> — just describe your meeting naturally. 'Call with Jake next Tuesday at 2pm' is all you need.<br><br>
+        <strong>Real Calendar Awareness</strong> — the system checks your actual Google Calendar before suggesting any time. No double-bookings, ever.<br><br>
+        <strong>Automatic Invites</strong> — Google Calendar invites go out to all participants the moment you confirm. You do not need to manually send anything.<br><br>
+        <strong>Smart Conflict Resolution</strong> — if your requested time is already taken, the AI instantly finds the nearest free alternatives and lets you pick one.<br><br>
+        <strong>Priority Detection</strong> — if you say 'urgent' or 'critical', the meeting is automatically tagged as high priority. No extra steps.<br><br>
+        <strong>AI Meeting Summaries</strong> — get AI-generated summaries, action items, and decisions for any meeting with one click."
+      </div>
+    </div>
+
+    <!-- INTEGRATIONS -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: Integrations — "Works with your existing tools"</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: Calendars row (Google Calendar live, Outlook + Apple coming soon) and Meeting Platforms row (Google Meet, Zoom, Teams live — Webex coming soon).</p>
+      <div class="script-block">
+        "This section shows all the tools that SchedulerAI works with — no new tools to learn, no replacing what your team already uses.<br><br>
+        <strong>Calendars:</strong> Google Calendar is fully live right now. Microsoft Outlook is also live. Apple Calendar is coming soon.<br><br>
+        <strong>Meeting Platforms:</strong> Google Meet, Zoom, and Microsoft Teams are all live and working today. The user picks their platform when scheduling — and the system creates the correct meeting link automatically.<br><br>
+        Webex support is coming in the next release."
+      </div>
+    </div>
+
+    <!-- MORE CAPABILITIES -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: "More capabilities built in"</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: 6 smaller capability items — Reschedule &amp; Cancel, Natural Language Dates, Paste Raw Notes, Today's Agenda, Multi-AI Provider, Saved Contacts.</p>
+      <div class="script-block">
+        "Beyond scheduling, there are more built-in capabilities:<br><br>
+        <strong>Reschedule and Cancel</strong> — move or cancel existing meetings with a single message. Type 'move Friday's call to Monday' and it is done.<br><br>
+        <strong>Natural Language Dates</strong> — 'next Friday afternoon' or 'tomorrow at 3' — the AI understands all of these instantly.<br><br>
+        <strong>Paste Raw Notes</strong> — you can drop unformatted meeting notes and the AI extracts all the details automatically.<br><br>
+        <strong>Today's Agenda</strong> — see your full day from both Google Calendar and Outlook in one unified view.<br><br>
+        <strong>Multi-AI Provider</strong> — powered by Claude, Gemini, Groq, or OpenAI. The client can choose based on their preference.<br><br>
+        <strong>Saved Contacts</strong> — the system remembers your frequent collaborators so you never need to retype their email address."
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: "How it works" — 3 Steps</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: 3 numbered steps with purple circles.</p>
+      <div class="script-block">
+        "The process is three steps.<br><br>
+        <strong>Step 1 — Describe your meeting.</strong> Type it like you would say it: 'Schedule a budget review with the team on Thursday at 11am for 45 minutes.'<br><br>
+        <strong>Step 2 — AI checks your calendar.</strong> SchedulerAI reads your real Google Calendar and Outlook availability and finds the perfect slot instantly. No manual calendar checking.<br><br>
+        <strong>Step 3 — Invites go out automatically.</strong> A calendar event is created and all participants receive their invites immediately. You are done."
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: Stats Row</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: Three numbers — "218 hrs saved per person per year", "10 sec average time to schedule", "0 back-and-forth emails".</p>
+      <div class="script-block">
+        "These numbers show the real impact.<br><br>
+        <strong>218 hours saved per person per year</strong> — that is more than 5 full working weeks saved, just from removing manual scheduling.<br><br>
+        <strong>10 seconds average time to schedule</strong> — compared to 8 to 12 minutes the traditional way.<br><br>
+        <strong>Zero back-and-forth emails</strong> — no more 'Does Tuesday work?', 'I am busy Tuesday, how about Wednesday?', 'Wednesday is fine, what time?' — all of that is eliminated."
+      </div>
+    </div>
+
+    <!-- TESTIMONIALS -->
+    <div class="card" style="margin-bottom:14px;">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: "What teams are saying" — Testimonials</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: 3 quote cards from Priya K. (Product Manager), Marcus T. (Sales Lead), Elena R. (Engineering Manager).</p>
+      <div class="script-block">
+        "Here are some early user reactions.<br><br>
+        A Product Manager said: 'I scheduled 8 meetings in the time it used to take me to schedule one. This is genuinely magic.'<br><br>
+        A Sales Lead said: 'Finally stopped dreading the scheduling part of my job. I just describe it and it is done.'<br><br>
+        An Engineering Manager said: 'Our team uses it every day. The AI understands context I did not even know it needed.'<br><br>
+        These represent the kind of time savings and simplicity that SchedulerAI delivers every day."
+      </div>
+    </div>
+
+    <!-- CTA + LOGIN -->
+    <div class="card" style="margin-bottom:0; border-color:var(--green);">
+      <p style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--green); font-weight:700; margin-bottom:10px;">&#9654; SCREEN: Final CTA — Click "Get started free"</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:10px;">Client sees: "Ready to stop wasting time on scheduling?" headline and a Get started button. When clicked, sign-in options appear (Google, Microsoft).</p>
+      <div class="script-block">
+        "At the bottom of the page is the call to action: 'Ready to stop wasting time on scheduling?'<br><br>
+        When I click 'Get started free' — you can see the sign-in options appear. The user can sign in with Google or Microsoft. No new account to create, no new password to remember. It uses the account they already have.<br><br>
+        Let me now log in and show you the actual scheduling experience inside the application."
+      </div>
+      <div class="tip" style="margin-top:12px; background:rgba(16,185,129,0.08); border-color:rgba(16,185,129,0.3);">
+        <div class="tip-icon">&#128204;</div>
+        <div style="font-size:12px;"><strong>After this — log in with Google.</strong> Then move to Section 2 (Live Demo Walkthrough) to show the actual scheduling flow inside the Dashboard.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 1 — OPENING PITCH
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <h2>Opening Pitch <span class="sub">— say this first, ~1 minute</span></h2>
+    </div>
+
+    <div class="script-block">
+      "Hello, thank you for your time today. I will walk you through SchedulerAI — an AI-powered meeting scheduling assistant.<br><br>
+      The problem we are solving is simple: Scheduling a meeting today is slow. You open a calendar, check availability, create a meeting link, copy it, write an email, send invites — it takes 10 minutes. Sometimes more.<br><br>
+      SchedulerAI reduces that entire process to 10 seconds using AI and natural language. The user just types what they want in plain English — and the system handles everything else automatically."
+    </div>
+
+    <div class="grid2" style="margin-top:16px;">
+      <div class="mini-card">
+        <h4>Problem</h4>
+        <p>Manual scheduling takes 8–12 minutes per meeting across calendar, email, and video tools.</p>
+      </div>
+      <div class="mini-card">
+        <h4>Solution</h4>
+        <p>One sentence in plain English → AI extracts details → calendar checked → meeting created in &lt;10 seconds.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 2 — LIVE DEMO WALKTHROUGH
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <h2>Live Demo Walkthrough <span class="sub">— show the app step by step</span></h2>
+    </div>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Login with Google or Microsoft</h4>
+          <p>User logs in via OAuth 2.0 — no passwords stored. One click, done.</p>
+          <div class="script-block">"The user logs in with their Google or Microsoft account. We use OAuth 2.0 — so no passwords are ever stored in our system."</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Type the meeting in plain English</h4>
+          <p>No forms. No dropdowns. Just a text box.</p>
+          <div class="script-block">"The user simply types: <strong>'Schedule a project review with John tomorrow at 3 PM for 1 hour.'</strong> That's it. No forms, no dropdowns, no calendar clicking."</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>AI extracts all details</h4>
+          <p>AI reads the sentence and returns structured JSON — title, participants, date, time, duration.</p>
+          <div class="script-block">"Our AI reads that sentence and extracts: the meeting title, the participant name, the date, the time, and the duration. It converts 'tomorrow' to an actual date automatically. This happens in under 1 second."</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Missing fields asked one at a time</h4>
+          <p>If the user didn't mention something (like John's email), the system asks one question — not a long form.</p>
+          <div class="script-block">"If something is missing — for example, John's email address — the system asks exactly one question at a time: 'What is John's email?' It never shows a big form. This feels like a conversation, not a form."</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h4>Calendar availability check</h4>
+          <p>System checks Google Calendar AND Outlook Calendar simultaneously for conflicts.</p>
+          <div class="script-block">"The system automatically checks the user's Google Calendar and Outlook Calendar to confirm 3 PM is free. If it is already busy, the system suggests the next available slot — like 4 PM or tomorrow morning."</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h4>Choose meeting platform</h4>
+          <p>Google Meet, Zoom, Microsoft Teams, or Webex — one click.</p>
+          <div class="script-block">"The user picks where the meeting happens — Google Meet, Zoom, Microsoft Teams, or Webex. One click. The system creates the correct link automatically."</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <h4>Meeting created — invites sent</h4>
+          <p>Calendar event created, meeting link embedded, email invites sent to all participants.</p>
+          <div class="script-block">"The calendar event is created, the meeting link is embedded in the event, and email invites are sent to all participants — completely automatically. The user sees a confirmation with all the details."</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card" style="border-color: var(--green); margin-top:0;">
+      <p><strong style="color: var(--green);">BONUS — Agenda View:</strong> &nbsp;The user can also type "What is my schedule today?" — the system pulls from both Google Calendar and Outlook and shows a unified agenda in one view.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 3 — FUNCTIONAL FEATURES
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <h2>Functional Features <span class="sub">— what the system can do</span></h2>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>What it does</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Natural language input</td><td>User types like they talk — no forms required</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>AI extraction</td><td>Pulls title, time, date, participants, duration from free text</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Missing field prompts</td><td>Asks one question at a time if information is missing</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Conflict detection</td><td>Checks if the requested time slot is already busy</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Smart slot suggestions</td><td>Proposes next available slot if requested time is busy</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Google Calendar integration</td><td>Create, update, cancel events via Calendar API v3</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Outlook Calendar integration</td><td>Read/write events via Microsoft Graph API</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Dual-calendar availability</td><td>Checks both Google and Outlook simultaneously for conflicts</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Google Meet</td><td>Native Meet link inside Google Calendar event</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Zoom meetings</td><td>Creates Zoom meeting via Zoom API v2, embeds link</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Microsoft Teams meetings</td><td>Creates Teams online meeting via Microsoft Graph</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Webex meetings</td><td>Webex platform integration</td><td><span class="pill pill-yellow">Planned</span></td></tr>
+          <tr><td>Unified agenda view</td><td>Today's meetings from all calendars in one view</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Contact memory</td><td>Remembers past participant emails — no re-entry needed</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Cancel meeting</td><td>User types "cancel my 3 PM meeting" — done</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Reschedule meeting</td><td>User types "move Friday's call to Monday" — done</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Priority detection</td><td>Detects "urgent", "ASAP", "important" and flags meeting</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>Admin panel</td><td>Enable/disable providers without code changes</td><td><span class="pill pill-green">Live</span></td></tr>
+          <tr><td>User preferences</td><td>Default platform, timezone, meeting duration settings</td><td><span class="pill pill-green">Live</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 4 — TECHNICAL SPECS
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <h2>Technical Specifications <span class="sub">— for technical audience</span></h2>
+    </div>
+
+    <div class="script-block">"Let me walk you through the architecture of the system."</div>
+
+    <div class="tbl-wrap" style="margin-top:16px;">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Technology</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Frontend</td><td>React 18 + Vite + Tailwind CSS</td><td>Custom <code>useChatFlow</code> hook manages conversation state machine</td></tr>
+          <tr><td>Backend</td><td>Node.js + Express.js</td><td>REST API on port 3001; session-based auth with MongoStore</td></tr>
+          <tr><td>Database</td><td>MongoDB + Mongoose ODM</td><td>Users, OAuth tokens, ProviderSettings, contacts</td></tr>
+          <tr><td>AI Layer</td><td>ProviderFactory abstraction</td><td>Groq (default), OpenAI, Claude, Gemini — switch via env var</td></tr>
+          <tr><td>Google Calendar</td><td>Google Calendar API v3</td><td>OAuth 2.0; create, read, update, delete events; invite sending</td></tr>
+          <tr><td>Outlook Calendar</td><td>Microsoft Graph API</td><td>OAuth 2.0; full CRUD; Teams join URL extraction</td></tr>
+          <tr><td>Zoom</td><td>Zoom API v2</td><td>OAuth; create online meetings, embed join link in calendar event</td></tr>
+          <tr><td>Microsoft Teams</td><td>Microsoft Graph Online Meetings</td><td>Create Teams meetings, fallback to calendar-based links</td></tr>
+          <tr><td>Contacts</td><td>Google People API</td><td>Search contacts; save/recall participant emails</td></tr>
+          <tr><td>Build Tool</td><td>Vite</td><td>Fast HMR dev server; optimized production bundle</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <h4 style="margin-bottom:12px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);">Three Core Design Patterns</h4>
+      <div class="grid2">
+        <div>
+          <p style="font-weight:700; color:var(--accent2); margin-bottom:4px;">1. Factory Pattern</p>
+          <p style="font-size:13px;">AI providers and meeting platforms are fully pluggable. Change one environment variable (<code>AI_PROVIDER=openai</code>) to switch AI model — zero code changes.</p>
+        </div>
+        <div>
+          <p style="font-weight:700; color:var(--accent2); margin-bottom:4px;">2. Service Layer</p>
+          <p style="font-size:13px;">All business logic lives in dedicated services: MeetingService, CalendarService, OutlookCalendarService, ConflictService, AgendaService, SmartSlotService.</p>
+        </div>
+        <div>
+          <p style="font-weight:700; color:var(--accent2); margin-bottom:4px;">3. Provider Registry</p>
+          <p style="font-size:13px;">A central config file defines all supported integrations. Admin panel reads this registry and toggles providers — no deployment needed.</p>
+        </div>
+        <div>
+          <p style="font-weight:700; color:var(--accent2); margin-bottom:4px;">4. State Machine (Frontend)</p>
+          <p style="font-size:13px;">Chat UI follows a strict flow: Input → AI Summary → Missing Fields → Platform → Slots → Confirmation. Each step is isolated and testable.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 5 — AI PROMPT DESIGN
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <h2>AI Prompt Design <span class="sub">— how the AI understands the user</span></h2>
+    </div>
+
+    <div class="script-block">"We have a custom-engineered prompt in PromptBuilder.js. Let me show you how it works."</div>
+
+    <div class="card" style="margin-top:14px;">
+      <h4 style="font-size:13px; font-weight:700; margin-bottom:12px;">There are exactly <span style="color:var(--accent2);">2 AI calls</span> per meeting scheduling:</h4>
+      <div class="grid2">
+        <div class="mini-card">
+          <h4>Call 1 — Extraction</h4>
+          <p>Reads the user's raw text. Returns a strict JSON object with all meeting fields. Handles date parsing, relative time, ambiguity resolution.</p>
+        </div>
+        <div class="mini-card">
+          <h4>Call 2 — Summary</h4>
+          <p>Given the confirmed meeting data, generates a friendly confirmation paragraph that the user sees after the meeting is created.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:10px; font-weight:700;">Actual Extraction Prompt (simplified view)</p>
+      <div class="prompt-box"><span class="comment"># System instruction given to the AI</span>
+
+<span class="key">ROLE:</span> <span class="val">You are a precise meeting scheduler AI.</span>
+       <span class="val">Extract all meeting information from the notes below.</span>
+
+<span class="key">CONTEXT:</span> Today is [current date]. Current time is [current time].
+
+<span class="key">NOTES:</span> <span class="val">"""[user's raw text goes here]"""</span>
+
+<span class="key">DATE RULES:</span>
+  - "tomorrow"       → next calendar day
+  - "Friday"         → next upcoming Friday
+  - "now" / "ASAP"   → today at current time
+  - "morning"        → set time = null, ask the user
+  - "noon"           → 12:00
+
+<span class="key">OUTPUT:</span> Return ONLY valid JSON. No markdown. No explanation.
+{
+  <span class="val">"meetings"</span>: [{
+    <span class="val">"meeting_title"</span>: "string or null",
+    <span class="val">"participants"</span>: ["Full Name"],
+    <span class="val">"participant_emails"</span>: {"Full Name": null},
+    <span class="val">"date"</span>: "YYYY-MM-DD or null",
+    <span class="val">"time"</span>: "HH:MM (24h) or null",
+    <span class="val">"duration"</span>: "minutes as number or null"
+  }]
+}
+
+<span class="comment"># Key rules enforced in prompt:
+# - NEVER invent a title — use null if not stated
+# - NEVER default duration — use null if not stated
+# - NEVER put duration inside the time field
+# - NEVER guess vague times like "afternoon" — use null</span></div>
+    </div>
+
+    <div class="card" style="margin-top:14px; border-color: var(--accent2);">
+      <p><strong style="color:var(--accent2);">Why this approach is reliable:</strong> The prompt gives the AI strict output rules — no markdown, no explanation, only JSON. This prevents hallucination and makes parsing 100% predictable. We spent significant time on edge cases like "tomorrow morning" (time = null), "next Friday afternoon" (time = null), and "in 30 minutes" (date = today, time = now + 30).</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 6 — TOKEN COST
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <h2>Token Usage &amp; Cost Per Meeting <span class="sub">— real numbers</span></h2>
+    </div>
+
+    <div class="grid2" style="margin-bottom:16px;">
+      <div class="mini-card" style="text-align:center;">
+        <h4>Total tokens per meeting</h4>
+        <div class="big-num">~1,400</div>
+        <p style="margin-top:8px; font-size:12px; color:var(--muted);">Extraction call (~1,050) + Summary call (~350)</p>
+      </div>
+      <div class="mini-card" style="text-align:center;">
+        <h4>AI calls per meeting</h4>
+        <div class="big-num">2</div>
+        <p style="margin-top:8px; font-size:12px; color:var(--muted);">1 extraction + 1 confirmation summary</p>
+      </div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>AI Call</th><th>Input Tokens</th><th>Output Tokens</th><th>Total</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Extraction</td>
+            <td>~750 tokens</td>
+            <td>~250 tokens</td>
+            <td>~1,000</td>
+            <td>Parse user text → JSON</td>
+          </tr>
+          <tr>
+            <td>Summary</td>
+            <td>~250 tokens</td>
+            <td>~150 tokens</td>
+            <td>~400</td>
+            <td>Generate confirmation paragraph</td>
+          </tr>
+          <tr style="background: rgba(99,102,241,0.05);">
+            <td><strong>Total</strong></td>
+            <td><strong>~1,000</strong></td>
+            <td><strong>~400</strong></td>
+            <td><strong>~1,400</strong></td>
+            <td>Per complete meeting scheduling</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:16px;">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>AI Provider</th><th>Cost per Meeting</th><th>Cost per 1,000 Meetings</th><th>Free Tier</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Groq (Llama 3) — Default</td>
+              <td><span class="pill pill-green">$0.00</span></td>
+              <td><span class="pill pill-green">$0.00</span></td>
+              <td>500,000 tokens/day free</td>
+            </tr>
+            <tr>
+              <td>OpenAI GPT-4o</td>
+              <td>~$0.004</td>
+              <td>~$4.00</td>
+              <td>No free tier</td>
+            </tr>
+            <tr>
+              <td>Anthropic Claude Haiku</td>
+              <td>~$0.001</td>
+              <td>~$1.00</td>
+              <td>No free tier</td>
+            </tr>
+            <tr>
+              <td>Google Gemini Flash</td>
+              <td>~$0.001</td>
+              <td>~$1.00</td>
+              <td>Limited free tier</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="script-block" style="margin-top:14px;">
+      "For most enterprise clients, Groq's free tier handles 350 or more meetings per day at zero AI cost. For very high volume — say 10,000 meetings per day — Claude Haiku or Gemini Flash are the most cost-efficient paid options at around $10 per day."
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 7 — Q&A
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <h2>Common Q&amp;A <span class="sub">— questions USA clients typically ask</span></h2>
+    </div>
+
+    <div class="qa-list">
+
+      <details open>
+        <summary>What AI model are you using?</summary>
+        <div class="qa-body">
+          <p>By default we use <strong>Groq</strong>, which runs Llama 3 — it is extremely fast and has a generous free tier. But we also fully support OpenAI GPT-4o, Anthropic Claude, and Google Gemini.</p>
+          <p>Switching AI providers requires only changing one environment variable: <code>AI_PROVIDER=openai</code> or <code>AI_PROVIDER=claude</code>. No code change is needed. The client can choose based on their performance requirements, data policy, or existing contracts.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What prompt do you use for AI extraction?</summary>
+        <div class="qa-body">
+          <p>We use a custom-engineered system prompt in <strong>PromptBuilder.js</strong>. The prompt tells the AI: today's date, current time, and strict rules for parsing relative dates like "tomorrow", "Friday", "ASAP", and "now".</p>
+          <p>The AI is instructed to return only a strict JSON object — no markdown, no explanation. This prevents hallucination and ensures 100% reliable parsing. We handle edge cases explicitly: for example, "morning" or "afternoon" are treated as null (the system then asks the user for an exact time).</p>
+          <p>There are <strong>exactly 2 AI calls</strong> per meeting: one for extraction (returns JSON), one for the confirmation summary paragraph.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>How many tokens does one meeting scheduling use?</summary>
+        <div class="qa-body">
+          <p>Approximately <strong>1,200 to 1,400 tokens total</strong> per meeting.</p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Call</th><th>Input</th><th>Output</th><th>Total</th></tr></thead>
+              <tbody>
+                <tr><td>Extraction</td><td>~750</td><td>~250</td><td>~1,000</td></tr>
+                <tr><td>Summary</td><td>~250</td><td>~150</td><td>~400</td></tr>
+                <tr><td><strong>Grand Total</strong></td><td><strong>~1,000</strong></td><td><strong>~400</strong></td><td><strong>~1,400</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>With Groq's free tier (500,000 tokens/day), this supports approximately <strong>350 complete meeting schedules per day at zero cost</strong>.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Is the user's data secure?</summary>
+        <div class="qa-body">
+          <ul>
+            <li>We use <strong>OAuth 2.0</strong> — no passwords are ever stored</li>
+            <li>OAuth tokens are stored encrypted in MongoDB</li>
+            <li>Sessions expire and token refresh is handled automatically</li>
+            <li>The system can be deployed in a <strong>private cloud</strong> (AWS, GCP, Azure) — no data leaves the client's infrastructure</li>
+            <li>We never send calendar event content to the AI — only the user's raw scheduling request text</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can we add our own calendar or meeting platform?</summary>
+        <div class="qa-body">
+          <p>Yes — the architecture is specifically designed for this. Adding a new meeting platform (for example, Webex or BlueJeans) requires writing <strong>one class</strong> that implements four methods: <code>createMeeting</code>, <code>updateMeeting</code>, <code>cancelMeeting</code>, <code>getMeetingDetails</code>.</p>
+          <p>Then register it in the PlatformFactory and the provider registry. <strong>No other code changes are needed anywhere in the system.</strong></p>
+          <p>Same pattern applies for calendar providers (Apple Calendar, Calendly, etc.) and auth providers (GitHub, LinkedIn, Email/Password).</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can it handle team scheduling — checking everyone's availability?</summary>
+        <div class="qa-body">
+          <p>Currently the system checks the <strong>organizer's</strong> Google Calendar and Outlook Calendar for conflicts, then sends invites to participants.</p>
+          <p>Full <strong>multi-participant availability checking</strong> — where each participant's calendar is checked before suggesting a slot — is on the near-term roadmap. This requires participants to also be connected users, or using calendar free/busy APIs from Google and Microsoft (which both support this).</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can it scale to enterprise volume?</summary>
+        <div class="qa-body">
+          <ul>
+            <li>The <strong>backend is stateless Express</strong> — it can be horizontally scaled behind a load balancer</li>
+            <li><strong>MongoDB Atlas</strong> provides managed, auto-scaling database clusters</li>
+            <li>Session state is stored in MongoDB (not in-memory), so multiple server instances work correctly</li>
+            <li>Groq's free tier handles 350 meetings/day. For enterprise scale, switching to Claude Haiku costs approximately $1 per 1,000 meetings</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>Why only 2 AI calls? Other tools use 4–5 calls per action.</summary>
+        <div class="qa-body">
+          <p>We designed the extraction prompt to handle everything in one shot — title, date, time, participants, duration, and date parsing all in a single API call. Most systems break this into multiple calls.</p>
+          <p>Using 2 calls instead of 4–5 gives us:</p>
+          <ul>
+            <li><strong>Lower latency</strong> — less waiting time for the user</li>
+            <li><strong>Lower cost</strong> — fewer API calls = lower token usage</li>
+            <li><strong>Better reliability</strong> — fewer API calls = fewer points of failure</li>
+          </ul>
+          <p>If cost is a concern, the second call (summary generation) can be replaced with a template — reducing to just 1 AI call per meeting at roughly 1,000 tokens total.</p>
+        </div>
+      </details>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 8 — NEXT AGENDA / ROADMAP
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <h2>Next Agenda — Product Roadmap <span class="sub">— what is coming next</span></h2>
+    </div>
+
+    <div class="script-block">"Let me show you where we are taking the product next. We have a clear three-phase roadmap."</div>
+
+    <div class="card" style="margin-top:14px;">
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--green);">Phase 1</div>
+          <div class="when">Now → Q3 2026</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Multi-Participant Availability Checking</h4>
+          <p>Check every participant's calendar — not just the organizer's — before suggesting a time slot. Uses Google and Microsoft free/busy APIs. Eliminates back-and-forth scheduling emails entirely.</p>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--green);">Phase 1</div>
+          <div class="when">Q3 2026</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Recurring Meetings</h4>
+          <p>Support for "every Monday at 9 AM" or "bi-weekly on Fridays". Creates a recurring Google Calendar / Outlook series with one command.</p>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--yellow);">Phase 2</div>
+          <div class="when">Q4 2026</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Webex &amp; Apple Calendar Integration</h4>
+          <p>Complete Webex meeting creation and Apple Calendar sync. Completes the full suite of major enterprise meeting platforms.</p>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--yellow);">Phase 2</div>
+          <div class="when">Q4 2026</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Meeting Summaries &amp; Action Items</h4>
+          <p>After a meeting ends, AI automatically generates a summary and action items from meeting notes or transcript. Sends follow-up email to all participants.</p>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--accent);">Phase 3</div>
+          <div class="when">Q1 2027</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Slack &amp; Teams Bot Integration</h4>
+          <p>Users schedule meetings directly from Slack or Teams: type "@SchedulerAI book a call with John tomorrow at 2 PM" inside a Slack channel — meeting is created without leaving the app.</p>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--accent);">Phase 3</div>
+          <div class="when">Q1 2027</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Smart Scheduling Preferences (AI-Learned)</h4>
+          <p>AI learns the user's habits over time — preferred meeting hours, preferred duration, which contacts they meet most — and proactively suggests optimal slots without being asked.</p>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-phase">
+          <div class="label" style="color:var(--accent);">Phase 3</div>
+          <div class="when">Q2 2027</div>
+        </div>
+        <div class="roadmap-content">
+          <h4>Mobile Application</h4>
+          <p>React Native mobile app for iOS and Android. Same AI scheduling experience on mobile — with push notifications for upcoming meetings and reschedule suggestions.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="qa-list" style="margin-top:20px;">
+
+      <details>
+        <summary>Q: What is the most important next feature?</summary>
+        <div class="qa-body">
+          <div class="script-block">"The most important next feature is multi-participant availability checking. Right now we check the organizer's calendar. The next step is checking every participant's calendar and suggesting a time that works for everyone — automatically. This is the core problem that tools like Calendly solve, but we will do it through natural language with no meeting link sharing required."</div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Q: When will the mobile app be available?</summary>
+        <div class="qa-body">
+          <div class="script-block">"The mobile application is planned for Q2 2027. We are prioritizing the backend features first — multi-participant scheduling, recurring meetings, and the Slack/Teams bot — because those deliver more value per development hour. The mobile app will be built on React Native, so it will share most of the existing frontend logic."</div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Q: Can we request a custom feature for our organization?</summary>
+        <div class="qa-body">
+          <div class="script-block">"Absolutely. Because the architecture uses a provider registry and factory pattern, most enterprise customizations — custom calendar sources, internal meeting room booking, specific approval workflows — can be built as new providers without touching the core system. We can scope a custom integration based on your organization's specific tools and processes."</div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Q: Is there an API we can integrate into our existing tools?</summary>
+        <div class="qa-body">
+          <div class="script-block">"Yes. The backend is a clean REST API. Every function — meeting extraction, availability checking, meeting creation, agenda view — is exposed as an endpoint. Your team can call these endpoints from any existing application, internal tool, or browser extension. We can provide full API documentation and a Postman collection."</div>
+        </div>
+      </details>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 9 — CLOSING + TIPS
+  ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">9</div>
+      <h2>Closing Statement <span class="sub">— how to end the demo</span></h2>
+    </div>
+
+    <div class="script-block">
+      "To summarize: SchedulerAI turns a 10-minute manual scheduling process into a 10-second AI conversation.<br><br>
+      It works with the tools your team already uses — Google Calendar, Outlook, Zoom, Teams.<br><br>
+      It is built with a modular architecture, so new platforms, AI models, and calendar sources can be added without rebuilding the system.<br><br>
+      And the cost per meeting is extremely low — starting from zero on the Groq free tier.<br><br>
+      I am happy to answer any questions, or do a live walkthrough of any specific feature you would like to see."
+    </div>
+
+    <!-- <div style="margin-top:24px;">
+      <h3 style="font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:14px; font-weight:700;">Tips for the Demo</h3>
+      <div class="tip-list">
+        <div class="tip"><div class="tip-icon">🐢</div><div><strong>Speak slowly.</strong> USA clients appreciate clear, deliberate speech. Pause between sentences.</div></div>
+        <div class="tip"><div class="tip-icon">💬</div><div><strong>Pause for questions.</strong> After each section say: "Any questions so far?" — every 2–3 minutes.</div></div>
+        <div class="tip"><div class="tip-icon">✅</div><div><strong>Be logged in before the demo starts.</strong> Do not waste time on the login flow during the live demo.</div></div>
+        <div class="tip"><div class="tip-icon">🎯</div><div><strong>Show one full end-to-end flow live.</strong> Type a real meeting request and let them watch it work from input to confirmation.</div></div>
+        <div class="tip"><div class="tip-icon">🗣️</div><div><strong>Use simple words.</strong> Say "checks your calendar" — not "queries the Calendar API v3 endpoint".</div></div>
+        <div class="tip"><div class="tip-icon">🔁</div><div><strong>If you don't understand a question</strong> — say "Great question, could you please repeat that?" This is completely normal and professional.</div></div>
+        <div class="tip"><div class="tip-icon">📋</div><div><strong>Keep this page open in another tab</strong> as a reference during the call — it is your safety net.</div></div>
+      </div>
+    </div> -->
+  </div>
+
+  <!-- FOOTER -->
+  <div style="margin-top:60px; padding-top:20px; border-top:1px solid var(--border); text-align:center; color:var(--muted); font-size:12px;">
+    <p>SchedulerAI — Client Demo Script &nbsp;|&nbsp; Prepared by Biswajit Singha &nbsp;|&nbsp; June 2026</p>
+    <p style="margin-top:6px;">Stack: React 18 + Node.js + MongoDB + Groq/OpenAI/Claude/Gemini + Google Calendar + Outlook + Zoom + Teams</p>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  // Track expand/collapse state
+  var allExpanded = false;
+
+  function toggleAll() {
+    var items = document.querySelectorAll('details');
+    allExpanded = !allExpanded;
+    items.forEach(function(d) {
+      if (allExpanded) {
+        d.setAttribute('open', '');
+      } else {
+        d.removeAttribute('open');
+      }
+    });
+    document.getElementById('btnToggle').textContent = allExpanded ? 'Collapse All' : 'Expand All';
+  }
+
+  function printPDF() {
+    // Expand all sections before printing so PDF shows all content
+    var items = document.querySelectorAll('details');
+    var wasOpen = [];
+    items.forEach(function(d, i) {
+      wasOpen[i] = d.hasAttribute('open');
+      d.setAttribute('open', '');
+    });
+
+    window.print();
+
+    // Restore original open/close state after print dialog closes
+    setTimeout(function() {
+      items.forEach(function(d, i) {
+        if (!wasOpen[i]) d.removeAttribute('open');
+      });
+    }, 500);
+  }
+
+  // Also auto-expand all on Ctrl+P / Cmd+P
+  window.addEventListener('beforeprint', function() {
+    document.querySelectorAll('details').forEach(function(d) {
+      d.setAttribute('open', '');
+    });
+  });
+</script>
+</body>
+</html>

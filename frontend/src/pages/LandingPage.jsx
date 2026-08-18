@@ -1,18 +1,31 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AuthAPI } from '../services/api';
+import SignInCard from '../components/SignInCard';
 
 export default function LandingPage() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [signInError, setSignInError] = useState(null);
 
-  const handleGetStarted = async () => {
+  const handleGetStarted = () => setShowSignIn(true);
+
+  const handleSignIn = async (providerId) => {
     setLoading(true);
+    setSignInError(null);
     try {
-      const res = await AuthAPI.getGoogleAuthUrl();
-      window.location.href = res.url;
+      if (providerId === 'google') {
+        const res = await AuthAPI.getGoogleAuthUrl();
+        window.location.href = res.url;
+      } else if (providerId === 'microsoft') {
+        const res = await AuthAPI.getMicrosoftAuthUrl();
+        window.location.href = res.url;
+      } else {
+        setLoading(false);
+      }
+      // Keep loading=true for google/microsoft; page navigates away
     } catch {
-      navigate('/app');
+      setLoading(false);
+      setSignInError('Could not connect to the sign-in service. Please try again.');
     }
   };
 
@@ -32,7 +45,7 @@ export default function LandingPage() {
               Pricing
             </a>
             <button
-              onClick={() => navigate('/app')}
+              onClick={handleGetStarted}
               className="text-slate-300 hover:text-white text-sm transition-colors"
             >
               Sign in
@@ -74,20 +87,39 @@ export default function LandingPage() {
             finds a free slot, and sends invites — automatically.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
-            <button
-              onClick={handleGetStarted}
-              disabled={loading}
-              className="btn-primary px-8 py-4 text-base font-semibold shadow-xl
-                shadow-brand-600/25 disabled:opacity-60 w-full sm:w-auto"
-            >
-              {loading ? 'Redirecting…' : 'Try it free with Google'}
-            </button>
-          </div>
-
-          <p className="text-slate-500 text-sm">
-            Google Calendar · Zoom · Google Meet · No credit card required
-          </p>
+          {!showSignIn ? (
+            <>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+                <button
+                  onClick={handleGetStarted}
+                  disabled={loading}
+                  className="btn-primary px-8 py-4 text-base font-semibold shadow-xl
+                    shadow-brand-600/25 disabled:opacity-60 w-full sm:w-auto"
+                >
+                  Get started free
+                </button>
+              </div>
+              <p className="text-slate-500 text-sm">
+                Google · Microsoft · Apple · No credit card required
+              </p>
+            </>
+          ) : (
+            <div className="w-full max-w-sm mx-auto mt-2">
+              <p className="text-slate-400 text-sm text-center mb-4 font-medium">
+                Choose how you want to sign in
+              </p>
+              {signInError && (
+                <p className="text-red-400 text-xs text-center mb-3">{signInError}</p>
+              )}
+              <SignInCard onSignIn={handleSignIn} loading={loading} />
+              <button
+                onClick={() => { setShowSignIn(false); setSignInError(null); }}
+                className="mt-3 w-full text-slate-600 hover:text-slate-400 text-xs transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -208,22 +240,58 @@ export default function LandingPage() {
 
       {/* ── Integrations bar ── */}
       <section className="px-6 pb-16">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <p className="text-center text-slate-500 text-xs uppercase tracking-widest mb-8 font-semibold">
             Works with your existing tools
           </p>
+
+          {/* Calendar providers */}
+          <p className="text-slate-600 text-xs uppercase tracking-wider text-center mb-4">Calendars</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+            {[
+              { label: 'Google Calendar', sub: 'Reads & writes your events', icon: '📆', available: true },
+              { label: 'Microsoft Outlook', sub: 'Coming soon', icon: '📧', available: false },
+              { label: 'Apple Calendar', sub: 'Coming soon', icon: '🍎', available: false },
+            ].map(({ label, sub, icon, available }) => (
+              <div key={label} className={`flex flex-col items-center text-center p-4 rounded-2xl
+                border transition-colors
+                ${available
+                  ? 'border-slate-700 bg-slate-900/60 hover:border-slate-600'
+                  : 'border-slate-800/50 bg-slate-900/20 opacity-50'}`}>
+                <span className="text-3xl mb-2">{icon}</span>
+                <p className={`text-sm font-semibold ${available ? 'text-white' : 'text-slate-500'}`}>{label}</p>
+                <p className="text-slate-500 text-xs mt-1 leading-snug">{sub}</p>
+                {!available && (
+                  <span className="mt-2 text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full">
+                    Soon
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Meeting providers */}
+          <p className="text-slate-600 text-xs uppercase tracking-wider text-center mb-4">Meeting Platforms</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Google Calendar', sub: 'Reads & writes your calendar', icon: '📆' },
-              { label: 'Google Meet', sub: 'Auto-creates meeting links', icon: '🎥' },
-              { label: 'Zoom', sub: 'Schedule Zoom calls natively', icon: '🔵' },
-              { label: 'Google Contacts', sub: 'Searches your people directory', icon: '👥' },
-            ].map(({ label, sub, icon }) => (
-              <div key={label} className="flex flex-col items-center text-center p-4 rounded-2xl
-                border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+              { label: 'Google Meet', sub: 'Auto-creates meeting links', icon: '🎥', available: true },
+              { label: 'Zoom', sub: 'Schedule Zoom calls natively', icon: '🔵', available: true },
+              { label: 'Microsoft Teams', sub: 'Schedule Teams meetings natively', icon: '💼', available: true },
+              { label: 'Webex', sub: 'Coming soon', icon: '🌐', available: false },
+            ].map(({ label, sub, icon, available }) => (
+              <div key={label} className={`flex flex-col items-center text-center p-4 rounded-2xl
+                border transition-colors
+                ${available
+                  ? 'border-slate-700 bg-slate-900/60 hover:border-slate-600'
+                  : 'border-slate-800/50 bg-slate-900/20 opacity-50'}`}>
                 <span className="text-3xl mb-2">{icon}</span>
-                <p className="text-white text-sm font-semibold">{label}</p>
+                <p className={`text-sm font-semibold ${available ? 'text-white' : 'text-slate-500'}`}>{label}</p>
                 <p className="text-slate-500 text-xs mt-1 leading-snug">{sub}</p>
+                {!available && (
+                  <span className="mt-2 text-xs bg-slate-800 text-slate-500 px-2 py-0.5 rounded-full">
+                    Soon
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -335,21 +403,36 @@ export default function LandingPage() {
 
       {/* ── Final CTA ── */}
       <section className="px-6 py-20 bg-slate-900/50 border-t border-slate-800">
-        <div className="max-w-2xl mx-auto text-center">
+        <div className="max-w-md mx-auto text-center">
           <h2 className="text-3xl font-bold text-white mb-4">
             Ready to stop wasting time on scheduling?
           </h2>
           <p className="text-slate-400 mb-8">
             Join thousands of professionals who schedule meetings in seconds, not minutes.
           </p>
-          <button
-            onClick={handleGetStarted}
-            disabled={loading}
-            className="btn-primary px-10 py-4 text-base font-semibold shadow-xl
-              shadow-brand-600/25 disabled:opacity-60"
-          >
-            {loading ? 'Redirecting…' : 'Get started free — no credit card'}
-          </button>
+          {!showSignIn ? (
+            <button
+              onClick={handleGetStarted}
+              disabled={loading}
+              className="btn-primary px-10 py-4 text-base font-semibold shadow-xl
+                shadow-brand-600/25 disabled:opacity-60"
+            >
+              Get started free — no credit card
+            </button>
+          ) : (
+            <div className="text-left">
+              {signInError && (
+                <p className="text-red-400 text-xs text-center mb-3">{signInError}</p>
+              )}
+              <SignInCard onSignIn={handleSignIn} loading={loading} />
+              <button
+                onClick={() => { setShowSignIn(false); setSignInError(null); }}
+                className="mt-3 w-full text-slate-600 hover:text-slate-400 text-xs transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

@@ -45,17 +45,18 @@ class CalendarService {
       .filter(([, email]) => email)
       .map(([displayName, email]) => ({ email, displayName }));
 
-    // Build description — for Zoom always embed the join link
     let description = meeting.task || '';
-    if (platform === 'zoom' && meetingLink) {
-      const zoomSection = [
-        'Join Zoom Meeting:',
+    if (meetingLink && (platform === 'zoom' || platform === 'teams')) {
+      const label =
+        platform === 'teams' ? 'Join Microsoft Teams Meeting:' : 'Join Zoom Meeting:';
+      const linkSection = [
+        label,
         meetingLink,
-        platformMeetingId ? `Meeting ID: ${platformMeetingId}` : '',
+        platform === 'zoom' && platformMeetingId ? `Meeting ID: ${platformMeetingId}` : '',
       ]
         .filter(Boolean)
         .join('\n');
-      description = description ? `${description}\n\n${zoomSection}` : zoomSection;
+      description = description ? `${description}\n\n${linkSection}` : linkSection;
     }
 
     const eventBody = {
@@ -120,6 +121,13 @@ class CalendarService {
       sendUpdates: 'all',
     });
     return { success: true, event: response.data };
+  }
+
+  async getEvent(eventId, authClient) {
+    if (!authClient) throw new Error('Google Calendar not connected. Please sign in first.');
+    const calendar = google.calendar({ version: 'v3', auth: authClient });
+    const response = await calendar.events.get({ calendarId: 'primary', eventId });
+    return response.data;
   }
 
   async searchAttendees(authClient, participantName) {
