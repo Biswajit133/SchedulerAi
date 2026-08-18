@@ -50,7 +50,11 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'lax',
+    // Frontend (Vercel) and backend (Render) are different domains, so the
+    // session cookie is cross-site — 'none' is required for the browser to
+    // send it back on API calls. Cross-site cookies also require `secure`,
+    // which is already forced on in production above.
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }));
