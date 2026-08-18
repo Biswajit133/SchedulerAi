@@ -51,7 +51,7 @@ const MEETING_PROVIDERS = [
     authKey: 'teamsTokens',
     requiresCalendar: null,
     authRoute: '/auth/teams',
-    available: true,
+    available: false,
   },
   {
     id: 'webex',
