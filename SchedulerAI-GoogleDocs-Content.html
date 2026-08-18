@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SchedulerAI — Copy for Google Docs</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  :root {
+    --primary: #6366f1;
+    --primary-light: #818cf8;
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: #475569;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 28px;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  h1 { font-size: 20px; font-weight: 700; }
+  p.sub { color: var(--text-muted); font-size: 12.5px; margin-top: 4px; }
+  .copy-btn {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+    transition: transform 0.1s ease;
+  }
+  .copy-btn:active { transform: scale(0.97); }
+  .copy-btn.copied { background: linear-gradient(135deg, #10b981, #34d399); }
+  textarea {
+    width: 100%;
+    height: 70vh;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    resize: vertical;
+  }
+  .hint { color: var(--text-muted); font-size: 11.5px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>SchedulerAI — Content for Google Docs</h1>
+    <p class="sub">Agent Details + Full Technical Specification, in paste-ready Markdown</p>
+  </div>
+  <button class="copy-btn" id="copyBtn" onclick="copyAll()">📋 Copy All</button>
+</div>
+
+<textarea id="content" readonly>
+# DOCUMENT 1: SchedulerAI — Agent Details: Functionality &amp; Technical Specification
+
+Tagline: One sentence -> a scheduled meeting, with invites, conflict checks, and a video link
+Stats: 2 AI calls per meeting · ~1,400 tokens per meeting · ~$0.00 cost (Groq free tier)
+
+## 1. What The Agent Does
+
+The SchedulerAI agent is a conversational AI assistant that turns a single plain-English sentence into a fully scheduled meeting. A user types something like "Schedule a sync with Alice tomorrow at 3pm for 30 min" in the chat; the agent extracts the structured meeting details, asks clarifying questions for anything missing, checks calendar availability, resolves conflicts, lets the user pick a video platform, and creates the event automatically — no manual calendar work required.
+
+What It Produces, Per Run
+
+| # | Output | Detail |
+|---|---|---|
+| 1 | Structured meeting object | Title, participants, emails, date, time, duration — extracted from free text |
+| 2 | Calendar event | Created on the user's connected calendar (Google or Outlook) |
+| 3 | Video meeting link | Google Meet, Zoom, or Microsoft Teams join URL, generated automatically |
+| 4 | Auto-sent invites | All participants emailed via the calendar provider's native invite system |
+| 5 | AI summary | One-paragraph confirmation shown in the chat after scheduling |
+
+## 2. Functionality
+
+### 2.1 Conversational Validator — Missing-Field Q&amp;A
+
+Before scheduling, the agent asks targeted follow-up questions for any field it couldn't extract from free text (MeetingService.findMissingFields()), one field at a time, in this fixed order:
+
+| Order | Field | Question Asked |
+|---|---|---|
+| 1 | meeting_title | "What is the meeting about?" |
+| 2 | participants | "Who should be invited? List their names separated by commas, or type 'just me' to skip." |
+| 3 | email_&lt;name&gt; (per participant) | "What is the email address for &lt;name&gt;?" — only asked if the email can't be resolved from contacts or calendar history |
+| 4 | date | "Please provide the meeting date." |
+| 5 | time | "Please provide the meeting time." |
+| 6 | duration | "Please provide the meeting duration (e.g. 30 min, 1 hour)." |
+
+A user can answer multiple fields in one reply — e.g. "tomorrow 3pm for 30 min" fills date, time, and duration at once.
+
+### 2.2 Confirmation &amp; Inline Editing
+
+Once all required fields are filled, the agent shows a summary (title, date, time, attendees, duration, task, owner) and asks the user to reply "confirm" or describe a change. Inline edits are supported in natural language — e.g. "change time to 5pm", "make it 2 hours", "add John as attendee" — applied without restarting the flow.
+
+### 2.3 Platform &amp; Slot Selection
+
+| Step | Behaviour |
+|---|---|
+| Platform selection | Auto-selected if the user named a platform, or if only one is connected. Otherwise shows buttons for each connected platform. |
+| Slot selection (date + time given) | Smart conflict check; if free, shows direct confirm; if busy, offers nearest 3-5 alternatives. |
+| Slot selection (date only) | Lists all free slots for that day. |
+
+### 2.4 End-to-End Flow
+
+User types: "Schedule a sync with Alice tomorrow at 3pm for 30 min"
+   ↓
+Extract -> AI parses text into a structured meeting object
+   ↓
+[missing fields? -> conversational Q&amp;A loop]
+   ↓
+Confirmation summary
+   ↓
+Platform selection (if &gt;1 connected) -> Slot selection / conflict check
+   ↓
+Email resolution for any unconfirmed participant
+   ↓
+Schedule -> event created + invites sent + join link generated
+   ↓
+Confirmation card: title, time, attendees, join link, calendar link
+
+## 3. Agent Architecture
+
+### 3.1 Orchestration — Phase State Machine
+
+The agent is a client-side state machine (useChatFlow.js) that routes each user message based on the current phase, then transitions. Every step is a discrete REST call — no streaming.
+
+| Phase | Meaning |
+|---|---|
+| IDLE | Awaiting a new request, or just finished one |
+| PICKING | Choosing which of several extracted meetings to proceed with |
+| MISSING | Asking the field-by-field Q&amp;A |
+| EMAIL_CONFIRM | Resolving/confirming a participant's email |
+| CONFIRM | Showing the summary, accepting "confirm" or an edit |
+| PLATFORM | Picking a meeting platform |
+| SLOTS | Picking a time slot |
+| DONE | Meeting scheduled; ready for next request |
+| CANCEL_CONFIRM | Confirming a cancellation |
+| RESCHEDULE_TIME / RESCHEDULE_CONFIRM | Collecting/confirming a new time |
+| FOLLOW_UP_SELECT | Picking which past meeting to follow up on |
+| NEEDS_NEW_TIME | Requested time was in the past |
+
+### 3.2 Shared Meeting Schema
+
+{
+  "id": "unique-id-1",
+  "meeting_title": "string | null",
+  "participants": ["Full Name 1", ...],
+  "participant_emails": { "Full Name 1": "email | null" },
+  "task": "string",
+  "owner": "string | null",
+  "deadline": "YYYY-MM-DD | null",
+  "date": "YYYY-MM-DD | null",
+  "time": "HH:MM (24h) | null",
+  "duration": "number (minutes) | null"
+}
+
+### 3.3 Components Behind The Agent
+
+| Component | Role | AI Calls |
+|---|---|---|
+| PromptBuilder | Builds extraction &amp; summary prompts; resolves relative dates | 2 per meeting |
+| MeetingService | Orchestrator — coordinates extraction, validation, scheduling | — |
+| ConflictService | Computes free/busy slots; merges Google + Outlook when both connected | None |
+| CalendarService / OutlookCalendarService | Google Calendar &amp; Microsoft Graph wrappers | None |
+| Meeting platform providers | Google Meet, Zoom, Teams (implemented); Webex (stub) | None |
+| IntegrationService | Reports connected providers for platform-selection step | None |
+
+The agent is provider-agnostic — runs on Groq (default), OpenAI, Claude, or Gemini via one env var, no code changes needed.
+
+## 4. Technical Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend Framework | React 18 + Vite |
+| Styling | Tailwind CSS |
+| Backend Framework | Node.js + Express |
+| Database | MongoDB + Mongoose |
+| Session Store | express-session |
+| AI Providers (pluggable) | Groq (Llama 3.3 70B, default), OpenAI (GPT-4o), Anthropic Claude, Google Gemini |
+| Calendar APIs | Google Calendar API, Microsoft Graph (Outlook Calendar) |
+| Meeting Platform APIs | Google Meet, Zoom API, Microsoft Teams (Graph API) |
+
+## 5. Cost Breakdown
+
+| AI Call | Input Tokens | Output Tokens | Total | Purpose |
+|---|---|---|---|---|
+| Extraction | ~750 | ~250 | ~1,000 | Parse user text -> JSON |
+| Summary | ~250 | ~150 | ~400 | Generate confirmation paragraph |
+| Total | ~1,000 | ~400 | ~1,400 | Per complete meeting scheduling |
+
+| AI Provider | Cost per Meeting | Cost per 1,000 Meetings | Free Tier |
+|---|---|---|---|
+| Groq (Llama 3.3 70B) — default | $0.00 | $0.00 | 500,000 tokens/day free |
+| OpenAI GPT-4o | ~$0.004 | ~$4.00 | No free tier |
+| Anthropic Claude Haiku | ~$0.001 | ~$1.00 | No free tier |
+| Google Gemini Flash | ~$0.001 | ~$1.00 | Limited free tier |
+
+Groq's free tier supports ~350 complete meeting schedules/day at zero cost. For 10,000+ meetings/day, Claude Haiku or Gemini Flash are the most cost-efficient paid fallbacks.
+
+## 6. Screenshots
+
+[Insert real screenshots here — replace each placeholder]
+
+1. Landing page hero
+2. Chat: initial natural-language input
+3. Chat: missing-field question prompt
+4. Chat: confirmation summary card
+5. Chat: platform selection card
+6. Chat: slot picker
+7. Chat: final confirmation card with join link
+8. Dashboard with integration status pills
+9. User Settings page
+10. Admin Settings page
+
+
+# DOCUMENT 2: SchedulerAI — Functionality &amp; Technical Specification (Full App)
+
+Tagline: One idea -> a scheduled meeting, with invites, conflict checks, and a video link
+
+## 1. Product Overview
+
+SchedulerAI is an AI-powered conversational meeting scheduler. A user describes a meeting in one plain-English sentence in a chat interface; the system extracts the meeting details, checks calendar availability across connected providers, resolves conflicts, lets the user pick a video platform, and creates the event with invites and a join link automatically.
+
+Who It's For
+
+| Segment | Use Case |
+|---|---|
+| Individual professionals / managers | Schedule 5+ meetings a week without manual calendar juggling |
+| Executive assistants / admins | Schedule on behalf of others quickly from natural-language requests |
+| Sales / recruiting teams | Book external calls fast across multiple meeting platforms |
+| Consultants / freelancers | Keep multiple calendars conflict-checked together |
+
+## 2. Functionality
+
+(See Document 1, Sections 1–2 above for full Q&amp;A flow, confirmation/editing, platform/slot selection, and end-to-end flow — identical content, not repeated here.)
+
+Alternate Entry Points — Sign-In Providers: Google and Microsoft OAuth sign-in gate access to the chat. Five additional OAuth flows exist for connecting calendars/platforms after sign-in: Zoom, Microsoft Teams, and Outlook Calendar.
+
+## 3. Conversational Architecture
+
+(See Document 1, Section 3 above for the full state machine, shared schema, and component table.)
+
+Request/Response Protocol — plain REST + JSON (no SSE streaming):
+
+| Phase | Endpoint Called |
+|---|---|
+| Extraction | POST /api/meetings/extract |
+| Re-validate after Q&amp;A | POST /api/meetings/validate |
+| Slot listing (date only) | GET /api/meetings/slots |
+| Smart conflict check | GET /api/meetings/suggest |
+| Connected platforms list | GET /api/integrations |
+| Final scheduling | POST /api/meetings/schedule |
+| Confirmation summary text | POST /api/meetings/summary |
+
+## 4. Services — Technical Detail
+
+(See Document 1, Section 3.3 for the condensed component table. Full per-service detail: PromptBuilder handles AI prompt construction with 2 calls/meeting; MeetingService orchestrates the whole flow; ConflictService computes free/busy slots with no AI; CalendarService/OutlookCalendarService wrap Google Calendar and Microsoft Graph respectively, falling back to mock data when unauthenticated; PlatformFactory + 4 providers — Google Meet, Zoom, Teams implemented, Webex stubbed; IntegrationService reports connected-provider status with no AI calls.)
+
+## 5. Technical Stack
+
+(Identical to Document 1, Section 4 above.)
+
+## 6. Project Structure
+
+SchedulerAi/
+├── backend/
+│   ├── server.js
+│   └── src/
+│       ├── routes/ (meetingRoutes.js, adminRoutes.js)
+│       ├── controllers/ (MeetingController, ContactController, AdminController)
+│       ├── services/ (PromptBuilder, MeetingService, ConflictService, CalendarService,
+│       │              OutlookCalendarService, AgendaService, IntegrationService)
+│       ├── meetingPlatforms/ (PlatformFactory + 4 providers)
+│       ├── providers/ (ProviderFactory for AI, auth/ for OAuth)
+│       ├── config/ (auth configs, providerRegistry.js)
+│       └── models/ (User.js, ProviderSettings.js)
+└── frontend/
+    └── src/
+        ├── hooks/useChatFlow.js
+        ├── components/ChatInterface.jsx
+        └── pages/ (LandingPage, Dashboard, UserSettings, AdminSettings)
+
+## 7. API Reference
+
+Meetings
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | /api/meetings/extract | AI extracts structured meeting(s) from text |
+| POST | /api/meetings/validate | Re-validates after Q&amp;A answers |
+| GET | /api/meetings/slots | Free time slots for a date |
+| GET | /api/meetings/suggest | Smart conflict check + alternatives |
+| POST | /api/meetings/summary | AI-generated confirmation paragraph |
+| POST | /api/meetings/schedule | Creates event + link + sends invites |
+| GET | /api/meetings/recent | Recent meetings for follow-up scheduling |
+| GET | /api/meetings | List meetings |
+| DELETE | /api/meetings/:eventId | Cancel a meeting |
+| PATCH | /api/meetings/:eventId/reschedule | Reschedule a meeting |
+
+Agenda: GET /api/agenda/today — today's meetings + free slots
+
+Authentication
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | /api/auth/providers | List available sign-in providers |
+| GET | /api/auth/google, /callback | Google OAuth sign-in |
+| GET | /api/auth/microsoft, /callback | Microsoft OAuth sign-in |
+| GET | /api/auth/status, /me | Session status / current user |
+| POST | /api/auth/logout | Clear session |
+| GET | /api/auth/zoom, /callback, /status; POST /disconnect | Zoom platform connection |
+| GET | /api/auth/teams, /callback, /status; POST /disconnect | Teams platform connection |
+| GET | /api/auth/outlook, /callback, /status; POST /disconnect | Outlook Calendar connection |
+
+Integrations, Preferences &amp; Contacts
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | /api/integrations | Connected providers summary |
+| PATCH | /api/user/preferences | Update timezone, defaults, duration |
+| GET | /api/contacts | Saved contacts |
+| GET | /api/contacts/calendar-search, /google-search | Search participant by name |
+| POST | /api/contacts | Save contact(s) |
+| DELETE | /api/contacts/:email | Delete a contact |
+
+Admin (requires session auth): GET /api/admin/providers · PATCH /api/admin/providers/:name · PATCH /api/admin/config
+
+Health: GET /api/health
+
+## 8. Environment Variables
+
+| Variable | Purpose | Required? |
+|---|---|---|
+| PORT, NODE_ENV, FRONTEND_URL, TIMEZONE | Server config | No |
+| SESSION_SECRET | Session cookie encryption | Yes |
+| MONGODB_URI | MongoDB connection | Yes |
+| AI_PROVIDER | Selects groq / openai / claude / gemini (default groq) | No |
+| GROQ_API_KEY + GROQ_MODEL | Required if AI_PROVIDER=groq (default) | Conditional |
+| OPENAI_API_KEY / CLAUDE_API_KEY / GEMINI_API_KEY (+ model) | Required only if that provider is active | Conditional |
+| GOOGLE_CLIENT_ID / SECRET / REDIRECT_URI | Google sign-in + Calendar OAuth | Yes |
+| ZOOM_CLIENT_ID / SECRET / REDIRECT_URI | Zoom OAuth (only if Zoom offered) | No |
+
+Only one AI provider key is required — whichever matches AI_PROVIDER. Optional integration keys degrade gracefully: unconnected providers simply don't appear as options, no crash.
+
+## 9. Cost Breakdown
+
+(Identical to Document 1, Section 5 above.)
+
+## 10. Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| Server fails to start | MONGODB_URI or SESSION_SECRET missing | Add required vars, restart |
+| AI extraction errors | AI_PROVIDER misconfigured or matching key missing/invalid | Check AI_PROVIDER + matching API key |
+| Zoom missing as platform option | Zoom OAuth not connected, or Zoom credentials not configured | Connect Zoom in Settings, or add credentials |
+| Teams meeting has no real join URL | Personal Microsoft account, not work/school | Expected fallback; use a work account for dedicated Teams URL |
+| Calendar shows demo/mock data | Not signed in via Google/Outlook OAuth | Sign in via Google or Microsoft button |
+| Chat re-asks an already-given field | Ambiguous free-text answer not recognized | Answer with an explicit value (exact date/HH:MM time) |
+| Admin routes return 401 | No authenticated session | Sign in first |
+
+## 11. Screenshots
+
+(Identical placeholder list to Document 1, Section 6 above.)
+</textarea>
+
+<p class="hint">Click "Copy All", then paste (Cmd+V) directly into your Google Doc's "Schedule AI" tab. You can also click inside the box and use Cmd+A / Cmd+C manually.</p>
+
+<script>
+function copyAll() {
+  const ta = document.getElementById('content');
+  const btn = document.getElementById('copyBtn');
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+
+  function showCopied() {
+    btn.textContent = '✅ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 Copy All';
+      btn.classList.remove('copied');
+    }, 1800);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ta.value).then(showCopied).catch(() => {
+      document.execCommand('copy');
+      showCopied();
+    });
+  } else {
+    document.execCommand('copy');
+    showCopied();
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SchedulerAI — Agent Details: Functionality &amp; Technical Specification</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary: #6366f1;
+    --primary-light: #818cf8;
+    --primary-dark: #4f46e5;
+    --accent: #10b981;
+    --accent2: #f59e0b;
+    --accent3: #ef4444;
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #475569;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --code-bg: #0d1117;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.65;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ─── COVER PAGE ─── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 40px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+    top: -100px; right: -100px;
+    border-radius: 50%;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%);
+    bottom: -50px; left: -50px;
+    border-radius: 50%;
+  }
+
+  .cover-badge {
+    display: inline-block;
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.4);
+    color: var(--primary-light);
+    padding: 6px 18px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .cover h1 {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff 0%, #a5b4fc 60%, #818cf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .cover-sub {
+    font-size: 18px;
+    color: var(--text-muted);
+    font-weight: 300;
+    margin-bottom: 48px;
+    letter-spacing: -0.01em;
+  }
+
+  .cover-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 56px;
+  }
+
+  .pill {
+    padding: 7px 16px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .pill-green  { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #34d399; }
+  .pill-blue   { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; }
+  .pill-amber  { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); color: #fcd34d; }
+  .pill-rose   { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.3);  color: #fca5a5; }
+  .pill-purple { background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3); color: #d8b4fe; }
+  .pill-cyan   { background: rgba(6,182,212,0.12);  border: 1px solid rgba(6,182,212,0.3);  color: #67e8f9; }
+
+  .cover-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    width: 100%;
+    max-width: 560px;
+    margin-top: 8px;
+  }
+
+  .stat-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .stat-num { font-size: 30px; font-weight: 800; color: var(--primary-light); line-height: 1; margin-bottom: 4px; }
+  .stat-label { font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .cover-meta {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--text-dim);
+    font-size: 10.5px;
+    display: flex;
+    gap: 32px;
+  }
+  .cover-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* ─── TOC PAGE ─── */
+  .toc-page {
+    padding: 60px 50px;
+    page-break-after: always;
+    background: var(--bg);
+  }
+
+  .toc-page h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 36px;
+    color: var(--text);
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .toc-num {
+    min-width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+  }
+
+  .toc-text { font-size: 12.5px; font-weight: 500; color: var(--text); }
+  .toc-count { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  /* ─── SECTIONS ─── */
+  .section {
+    padding: 54px 50px 40px;
+    page-break-before: always;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-icon {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .icon-indigo  { background: rgba(99,102,241,0.15); }
+  .icon-green   { background: rgba(16,185,129,0.15); }
+  .icon-amber   { background: rgba(245,158,11,0.15); }
+  .icon-blue    { background: rgba(59,130,246,0.15); }
+  .icon-rose    { background: rgba(239,68,68,0.15);  }
+  .icon-purple  { background: rgba(168,85,247,0.15); }
+  .icon-cyan    { background: rgba(6,182,212,0.15);  }
+  .icon-slate   { background: rgba(100,116,139,0.2); }
+  .icon-orange  { background: rgba(249,115,22,0.15); }
+  .icon-teal    { background: rgba(20,184,166,0.15); }
+
+  .section-title { font-size: 24px; font-weight: 700; color: var(--text); }
+  .section-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  h3.sub-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 28px 0 14px; }
+  h3.sub-title:first-child { margin-top: 0; }
+  p.lead { color: var(--text-muted); margin-bottom: 14px; line-height: 1.7; }
+
+  /* ─── Q&A CARDS ─── */
+  .qa-block {
+    margin-bottom: 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .question {
+    background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02));
+    border-left: 3px solid var(--primary);
+    padding: 14px 18px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #c7d2fe;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .q-icon {
+    min-width: 20px; height: 20px;
+    background: var(--primary);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800; color: #fff;
+    margin-top: 1px;
+  }
+
+  .answer {
+    background: var(--surface);
+    padding: 16px 18px 16px 48px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .answer p { margin-bottom: 10px; }
+  .answer p:last-child { margin-bottom: 0; }
+  .answer strong { color: var(--text); font-weight: 600; }
+  .answer ul, .answer ol { padding-left: 18px; margin: 8px 0; }
+  .answer li { margin-bottom: 5px; }
+
+  /* ─── INLINE CODE / CODE BLOCKS ─── */
+  code {
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #a5b4fc;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #e2e8f0;
+    white-space: pre-wrap;
+  }
+
+  /* ─── HIGHLIGHT BOXES ─── */
+  .highlight-box {
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .hl-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+  .hl-green  { background: rgba(16,185,129,0.08); border-left: 3px solid #10b981; }
+  .hl-amber  { background: rgba(245,158,11,0.08); border-left: 3px solid #f59e0b; }
+  .hl-blue   { background: rgba(59,130,246,0.08); border-left: 3px solid #3b82f6; }
+  .hl-red    { background: rgba(239,68,68,0.08);  border-left: 3px solid #ef4444; }
+  .hl-purple { background: rgba(168,85,247,0.08); border-left: 3px solid #a855f7; }
+  .highlight-box .hl-content { color: var(--text-muted); line-height: 1.65; }
+  .highlight-box strong { color: var(--text); }
+
+  /* ─── FLOW DIAGRAM ─── */
+  .flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0;
+    padding: 14px 16px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .flow-step {
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.3);
+    color: #c7d2fe;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .flow-arrow { color: var(--text-dim); font-size: 14px; font-weight: 300; }
+
+  /* ─── TABLES ─── */
+  .table-wrap { margin: 12px 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: rgba(99,102,241,0.12); }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: #a5b4fc;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .check { color: #34d399; font-weight: 700; }
+  .cross { color: #f87171; font-weight: 700; }
+  .partial { color: #fbbf24; font-weight: 700; }
+
+  /* ─── ARCH DIAGRAM ─── */
+  .arch {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.8;
+    color: #94a3b8;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .arch .layer { color: #a5b4fc; font-weight: 600; }
+  .arch .arrow { color: #475569; }
+  .arch .box   { color: #e2e8f0; }
+  .arch .note  { color: #34d399; }
+
+  /* ─── SECTION DIVIDER ─── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 28px 0;
+  }
+
+  /* ─── SCREENSHOT PLACEHOLDER ─── */
+  .screenshot-placeholder {
+    margin: 14px 0;
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    background: repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.02),
+      rgba(255,255,255,0.02) 10px,
+      rgba(255,255,255,0.04) 10px,
+      rgba(255,255,255,0.04) 20px
+    );
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+  .screenshot-placeholder .ph-icon { font-size: 26px; margin-bottom: 10px; }
+  .screenshot-placeholder .ph-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+  .screenshot-placeholder .ph-hint { font-size: 10.5px; margin-top: 4px; color: var(--text-dim); }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    padding: 40px 50px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .footer-logo { font-size: 16px; font-weight: 800; color: var(--primary-light); }
+
+  /* ─── PRINT ─── */
+  @media print {
+    body { font-size: 12px; }
+    .cover { page-break-after: always; }
+    .section { page-break-before: always; }
+    .toc-page { page-break-after: always; }
+    .qa-block { page-break-inside: avoid; }
+    .screenshot-placeholder { page-break-inside: avoid; }
+  }
+
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     COVER PAGE
+══════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-badge">🤖 Agent Details</div>
+  <h1>SchedulerAI — Conversational Scheduling Agent</h1>
+  <p class="cover-sub">Functionality &amp; Technical Specification</p>
+
+  <div class="cover-pills">
+    <span class="pill pill-purple">Groq / OpenAI / Claude / Gemini</span>
+    <span class="pill pill-blue">Stateful chat — 12 phases</span>
+    <span class="pill pill-cyan">Google + Outlook Calendar</span>
+    <span class="pill pill-rose">Zoom + Teams + Google Meet</span>
+  </div>
+
+  <div class="cover-stats">
+    <div class="stat-box">
+      <div class="stat-num">2</div>
+      <div class="stat-label">AI calls per meeting</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">~1,400</div>
+      <div class="stat-label">tokens per meeting</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">~$0.00</div>
+      <div class="stat-label">cost per meeting (Groq free tier)</div>
+    </div>
+  </div>
+
+  <div class="cover-meta">
+    <span>📅 2026-06-18</span>
+    <span>👤 Biswajit Singha</span>
+    <span>🔖 v1.0</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TABLE OF CONTENTS
+══════════════════════════════════════════ -->
+<div class="toc-page">
+  <h2>Table of Contents</h2>
+  <div class="toc-grid">
+    <div class="toc-item"><div class="toc-num">1</div><div><div class="toc-text">What The Agent Does</div><div class="toc-count">Overview + 5 outputs</div></div></div>
+    <div class="toc-item"><div class="toc-num">2</div><div><div class="toc-text">Functionality</div><div class="toc-count">Q&amp;A flow · confirm · platform/slot select</div></div></div>
+    <div class="toc-item"><div class="toc-num">3</div><div><div class="toc-text">Agent Architecture</div><div class="toc-count">State machine + schema + components</div></div></div>
+    <div class="toc-item"><div class="toc-num">4</div><div><div class="toc-text">Technical Stack</div><div class="toc-count">Frontend / backend / AI / integrations</div></div></div>
+    <div class="toc-item"><div class="toc-num">5</div><div><div class="toc-text">Cost Breakdown</div><div class="toc-count">Tokens + $ per meeting</div></div></div>
+    <div class="toc-item"><div class="toc-num">6</div><div><div class="toc-text">Screenshots</div><div class="toc-count">10 placeholders</div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 1 — WHAT THE AGENT DOES
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-indigo">🚀</div>
+    <div>
+      <div class="section-title">1. What The Agent Does</div>
+      <div class="section-subtitle">One-paragraph overview + the 5 outputs it produces per run</div>
+    </div>
+  </div>
+
+  <p class="lead">The SchedulerAI agent is a conversational AI assistant that turns a single plain-English sentence into a fully scheduled meeting. A user types something like <em>"Schedule a sync with Alice tomorrow at 3pm for 30 min"</em> in the chat; the agent extracts the structured meeting details, asks clarifying questions for anything missing, checks calendar availability, resolves conflicts, lets the user pick a video platform, and creates the event automatically — no manual calendar work required.</p>
+
+  <h3 class="sub-title">What It Produces, Per Run</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Output</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Structured meeting object</td><td>Title, participants, emails, date, time, duration — extracted from free text</td></tr>
+        <tr><td>2</td><td>Calendar event</td><td>Created on the user's connected calendar (Google or Outlook)</td></tr>
+        <tr><td>3</td><td>Video meeting link</td><td>Google Meet, Zoom, or Microsoft Teams join URL, generated automatically</td></tr>
+        <tr><td>4</td><td>Auto-sent invites</td><td>All participants emailed via the calendar provider's native invite system</td></tr>
+        <tr><td>5</td><td>AI summary</td><td>One-paragraph confirmation shown in the chat after scheduling</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 2 — FUNCTIONALITY
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-green">⚙️</div>
+    <div>
+      <div class="section-title">2. Functionality</div>
+      <div class="section-subtitle">The conversational Q&amp;A flow, confirmation, and selection steps</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">2.1 Conversational Validator — Missing-Field Q&amp;A</h3>
+  <p class="lead">Before scheduling, the agent asks targeted follow-up questions for any field it couldn't extract from the user's free text. This logic lives in <code>MeetingService.findMissingFields()</code> and is asked one field at a time, in this fixed order:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Order</th><th>Field</th><th>Question Asked</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>meeting_title</code></td><td>"What is the meeting about?"</td></tr>
+        <tr><td>2</td><td><code>participants</code></td><td>"Who should be invited? List their names separated by commas, or type 'just me' to skip."</td></tr>
+        <tr><td>3</td><td><code>email_&lt;name&gt;</code> (per participant)</td><td>"What is the email address for &lt;name&gt;?" — only asked if the email can't be resolved from contacts or calendar history</td></tr>
+        <tr><td>4</td><td><code>date</code></td><td>"Please provide the meeting date."</td></tr>
+        <tr><td>5</td><td><code>time</code></td><td>"Please provide the meeting time."</td></tr>
+        <tr><td>6</td><td><code>duration</code></td><td>"Please provide the meeting duration (e.g. 30 min, 1 hour)."</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box hl-blue">
+    <div class="hl-icon">💡</div>
+    <div class="hl-content">A user can answer multiple fields in one reply — e.g. "tomorrow 3pm for 30 min" fills <strong>date</strong>, <strong>time</strong>, and <strong>duration</strong> at once.</div>
+  </div>
+
+  <h3 class="sub-title">2.2 Confirmation &amp; Inline Editing</h3>
+  <p class="lead">Once all required fields are filled, the agent shows a summary (title, date, time, attendees, duration, task, owner) and asks the user to reply "confirm" or describe a change. Inline edits are supported in natural language — e.g. "change time to 5pm", "make it 2 hours", "add John as attendee" — parsed and applied without restarting the flow.</p>
+
+  <h3 class="sub-title">2.3 Platform &amp; Slot Selection</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Step</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Platform selection</td><td>If the user named a platform explicitly ("use Zoom"), it's auto-selected. If exactly one platform is connected, it's auto-selected. Otherwise the agent shows buttons for each connected platform.</td></tr>
+        <tr><td>Slot selection (date + time given)</td><td>A smart conflict check runs against the connected calendar(s). If free, the requested slot is shown for direct confirm. If busy, the nearest 3-5 free alternatives are offered.</td></tr>
+        <tr><td>Slot selection (date only)</td><td>All free slots for that day are listed for the user to pick from.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">2.4 End-to-End Flow</h3>
+  <div class="arch">User types: "Schedule a sync with Alice tomorrow at 3pm for 30 min"
+   |
+   v
+Extract  -&gt;  AI parses text into a structured meeting object
+   |
+   +-- missing fields? --&gt; conversational Q&amp;A (Section 2.1) --+
+   |                                                            |
+   v                                                            |
+Confirmation summary  &lt;--------------------------------------------+
+   |
+   v
+Platform selection (if &gt;1 connected)  -&gt;  Slot selection / conflict check
+   |
+   v
+Email resolution for any unconfirmed participant
+   |
+   v
+Schedule  -&gt;  event created + invites sent + join link generated
+   |
+   v
+Confirmation card: title, time, attendees, join link, calendar link</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 3 — AGENT ARCHITECTURE
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-purple">🧩</div>
+    <div>
+      <div class="section-title">3. Agent Architecture</div>
+      <div class="section-subtitle">State machine, shared schema, and the components that power it</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">3.1 Orchestration — Phase State Machine</h3>
+  <p class="lead">The agent is a client-side state machine (<code>useChatFlow.js</code>) that routes each user message to a handler based on the current phase, then transitions to the next phase. Every step is a discrete REST call to the backend — no streaming.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>IDLE</code></td><td>Awaiting a new scheduling request, or just finished one</td></tr>
+        <tr><td><code>PICKING</code></td><td>User is choosing which of several extracted meetings to proceed with</td></tr>
+        <tr><td><code>MISSING</code></td><td>Asking the field-by-field Q&amp;A from Section 2.1</td></tr>
+        <tr><td><code>EMAIL_CONFIRM</code></td><td>Resolving/confirming a participant's email address</td></tr>
+        <tr><td><code>CONFIRM</code></td><td>Showing the summary, accepting "confirm" or an inline edit</td></tr>
+        <tr><td><code>PLATFORM</code></td><td>User picking a meeting platform from connected options</td></tr>
+        <tr><td><code>SLOTS</code></td><td>User picking a time slot from available options</td></tr>
+        <tr><td><code>DONE</code></td><td>Meeting scheduled; ready for the next request</td></tr>
+        <tr><td><code>CANCEL_CONFIRM</code></td><td>Confirming a meeting cancellation</td></tr>
+        <tr><td><code>RESCHEDULE_TIME</code> / <code>RESCHEDULE_CONFIRM</code></td><td>Collecting and confirming a new time for an existing meeting</td></tr>
+        <tr><td><code>FOLLOW_UP_SELECT</code></td><td>User picking which past meeting to schedule a follow-up to</td></tr>
+        <tr><td><code>NEEDS_NEW_TIME</code></td><td>Requested time was in the past; asking for a future time</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">3.2 Shared Meeting Schema</h3>
+  <p class="lead">Every phase reads and writes the same meeting object, defined by the agent's extraction prompt:</p>
+
+  <pre>{
+  "id": "unique-id-1",
+  "meeting_title": "string | null",      // concise title, never invented
+  "participants": ["Full Name 1", ...],
+  "participant_emails": { "Full Name 1": "email | null" },
+  "task": "string",                       // what needs to be done
+  "owner": "string | null",               // person responsible
+  "deadline": "YYYY-MM-DD | null",
+  "date": "YYYY-MM-DD | null",
+  "time": "HH:MM (24h) | null",           // start time only, never a duration phrase
+  "duration": "number (minutes) | null"   // never defaulted — always asked if missing
+}</pre>
+
+  <h3 class="sub-title">3.3 Components Behind The Agent</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Component</th><th>Role</th><th>AI Calls</th></tr></thead>
+      <tbody>
+        <tr><td><strong>PromptBuilder</strong></td><td>Builds the extraction prompt and the summary prompt sent to the active AI provider; resolves relative dates ("tomorrow") before they reach the model</td><td>2 per meeting (1 extraction, 1 summary)</td></tr>
+        <tr><td><strong>MeetingService</strong></td><td>Orchestrator — coordinates extraction, missing-field detection, availability checks, platform creation, invite sending, and summary generation</td><td>—</td></tr>
+        <tr><td><strong>ConflictService</strong></td><td>Pure logic — computes free/busy slots and checks a requested slot for conflicts; merges Google + Outlook busy times when both are connected</td><td>None</td></tr>
+        <tr><td><strong>CalendarService / OutlookCalendarService</strong></td><td>Google Calendar &amp; Microsoft Graph API wrappers — create/update/delete events, search attendees, fetch recent meetings</td><td>None</td></tr>
+        <tr><td><strong>Meeting platform providers</strong></td><td>Google Meet, Zoom, Teams (implemented), Webex (stub) — create the video join link for the selected platform</td><td>None</td></tr>
+        <tr><td><strong>IntegrationService</strong></td><td>Reports which calendar/meeting providers a user has connected, used to populate the PLATFORM-phase selection buttons</td><td>None</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box hl-green">
+    <div class="hl-icon">✅</div>
+    <div class="hl-content">The agent is provider-agnostic — it runs on any of <strong>Groq (default), OpenAI, Claude, or Gemini</strong>, selected by a single environment variable, with no code changes required to switch.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 4 — TECHNICAL STACK
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-blue">🧱</div>
+    <div>
+      <div class="section-title">4. Technical Stack</div>
+      <div class="section-subtitle">Frameworks, libraries, and external APIs the agent runs on</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend Framework</td><td>React 18 + Vite</td></tr>
+        <tr><td>Styling</td><td>Tailwind CSS</td></tr>
+        <tr><td>Backend Framework</td><td>Node.js + Express</td></tr>
+        <tr><td>Database</td><td>MongoDB + Mongoose</td></tr>
+        <tr><td>Session Store</td><td><code>express-session</code></td></tr>
+        <tr><td>AI Providers (pluggable)</td><td>Groq (Llama 3.3 70B, default), OpenAI (GPT-4o), Anthropic Claude, Google Gemini</td></tr>
+        <tr><td>Calendar APIs</td><td>Google Calendar API, Microsoft Graph (Outlook Calendar)</td></tr>
+        <tr><td>Meeting Platform APIs</td><td>Google Meet (via Calendar conferenceData), Zoom API, Microsoft Teams (Graph API)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 5 — COST BREAKDOWN
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-cyan">💰</div>
+    <div>
+      <div class="section-title">5. Cost Breakdown</div>
+      <div class="section-subtitle">2 AI calls per meeting — real token and dollar figures</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>AI Call</th><th>Input Tokens</th><th>Output Tokens</th><th>Total</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Extraction</td><td>~750</td><td>~250</td><td>~1,000</td><td>Parse user text → JSON</td></tr>
+        <tr><td>Summary</td><td>~250</td><td>~150</td><td>~400</td><td>Generate confirmation paragraph</td></tr>
+        <tr style="background: rgba(99,102,241,0.05);"><td><strong>Total</strong></td><td><strong>~1,000</strong></td><td><strong>~400</strong></td><td><strong>~1,400</strong></td><td>Per complete meeting scheduling</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>AI Provider</th><th>Cost per Meeting</th><th>Cost per 1,000 Meetings</th><th>Free Tier</th></tr></thead>
+      <tbody>
+        <tr><td>Groq (Llama 3.3 70B) — default</td><td><span class="pill pill-green">$0.00</span></td><td><span class="pill pill-green">$0.00</span></td><td>500,000 tokens/day free</td></tr>
+        <tr><td>OpenAI GPT-4o</td><td>~$0.004</td><td>~$4.00</td><td>No free tier</td></tr>
+        <tr><td>Anthropic Claude Haiku</td><td>~$0.001</td><td>~$1.00</td><td>No free tier</td></tr>
+        <tr><td>Google Gemini Flash</td><td>~$0.001</td><td>~$1.00</td><td>Limited free tier</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box hl-blue">
+    <div class="hl-icon">💡</div>
+    <div class="hl-content">Groq's free tier supports roughly <strong>350 complete meeting schedules per day at zero AI cost</strong>. For very high volume (10,000+ meetings/day), Claude Haiku or Gemini Flash are the most cost-efficient paid fallbacks.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 6 — SCREENSHOTS
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-indigo">🖼️</div>
+    <div>
+      <div class="section-title">6. Screenshots</div>
+      <div class="section-subtitle">Placeholders — replace each box with an actual screenshot of the running app</div>
+    </div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🖥️</div>
+    <div class="ph-label">Figure 1 — Landing page hero</div>
+    <div class="ph-hint">Public marketing page before sign-in</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">💬</div>
+    <div class="ph-label">Figure 2 — Chat: initial natural-language input</div>
+    <div class="ph-hint">User types a one-sentence scheduling request</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">❓</div>
+    <div class="ph-label">Figure 3 — Chat: missing-field question prompt</div>
+    <div class="ph-hint">MISSING phase — e.g. "What is the meeting about?"</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">✅</div>
+    <div class="ph-label">Figure 4 — Chat: confirmation summary card</div>
+    <div class="ph-hint">CONFIRM phase, with inline-edit support</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🎛️</div>
+    <div class="ph-label">Figure 5 — Chat: platform selection card</div>
+    <div class="ph-hint">PLATFORM phase — Zoom / Teams / Google Meet buttons</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🕒</div>
+    <div class="ph-label">Figure 6 — Chat: slot picker</div>
+    <div class="ph-hint">SLOTS phase — available time slots for the requested date</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🎉</div>
+    <div class="ph-label">Figure 7 — Chat: final confirmation card with join link</div>
+    <div class="ph-hint">Scheduled meeting summary + video join link + calendar link</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">📊</div>
+    <div class="ph-label">Figure 8 — Dashboard with integration status pills</div>
+    <div class="ph-hint">Connected calendar + meeting platform indicators</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">⚙️</div>
+    <div class="ph-label">Figure 9 — User Settings page</div>
+    <div class="ph-hint">Timezone, default duration, default providers, connect/disconnect</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🛡️</div>
+    <div class="ph-label">Figure 10 — Admin Settings page</div>
+    <div class="ph-hint">Provider enable/disable + config panel</div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footer-logo">SchedulerAI</div>
+  <div>Agent Details: Functionality &amp; Technical Specification · v1.0 · 2026-06-18</div>
+</div>
+
+</body>
+</html>
