@@ -4,7 +4,7 @@ const microsoftSignInAuth = require('../../config/microsoftSignInAuth');
 class MicrosoftAuthProvider extends AuthProvider {
   get id() { return 'microsoft'; }
   get label() { return 'Microsoft'; }
-  get available() { return true; }
+  get available() { return false; }
 
   async getAuthUrl() {
     return microsoftSignInAuth.getAuthUrl();
