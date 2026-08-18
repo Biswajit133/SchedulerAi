@@ -9,6 +9,14 @@ const { errorHandler } = require('./src/middleware/validation');
 const { connectDB } = require('./src/config/database');
 const { seedProviderSettings } = require('./src/controllers/AdminController');
 
+// Mongo connectivity issues (bad URI, IP not whitelisted, transient network
+// errors) should degrade the app, not kill the process — several internal
+// operations in connect-mongo/mongoose reject outside of any listener we
+// control, so this is the backstop for those.
+process.on('unhandledRejection', (err) => {
+  console.error('[UnhandledRejection] (non-fatal):', err?.message || err);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
