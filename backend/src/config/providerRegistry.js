@@ -42,7 +42,7 @@ const MEETING_PROVIDERS = [
     authKey: 'zoomTokens',
     requiresCalendar: null,
     authRoute: '/auth/zoom',
-    available: true,
+    available: false,
   },
   {
     id: 'teams',
