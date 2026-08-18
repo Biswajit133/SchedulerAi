@@ -6,7 +6,7 @@ const { isDBConnected } = require('../config/database');
 // Static defaults — used when DB is unavailable or a provider has no saved record yet.
 const AUTH_DEFAULTS = [
   { provider_name: 'google',    provider_type: 'auth',    is_enabled: true  },
-  { provider_name: 'microsoft', provider_type: 'auth',    is_enabled: true  },
+  { provider_name: 'microsoft', provider_type: 'auth',    is_enabled: false },
   { provider_name: 'github',    provider_type: 'auth',    is_enabled: false },
   { provider_name: 'linkedin',  provider_type: 'auth',    is_enabled: false },
   { provider_name: 'email',     provider_type: 'auth',    is_enabled: false },
