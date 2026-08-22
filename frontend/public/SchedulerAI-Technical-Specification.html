@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SchedulerAI — Functionality &amp; Technical Specification</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary: #6366f1;
+    --primary-light: #818cf8;
+    --primary-dark: #4f46e5;
+    --accent: #10b981;
+    --accent2: #f59e0b;
+    --accent3: #ef4444;
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #475569;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --code-bg: #0d1117;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.65;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ─── COVER PAGE ─── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 40px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+    top: -100px; right: -100px;
+    border-radius: 50%;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%);
+    bottom: -50px; left: -50px;
+    border-radius: 50%;
+  }
+
+  .cover-badge {
+    display: inline-block;
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.4);
+    color: var(--primary-light);
+    padding: 6px 18px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .cover h1 {
+    font-size: 54px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff 0%, #a5b4fc 60%, #818cf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .cover-sub {
+    font-size: 20px;
+    color: var(--text-muted);
+    font-weight: 300;
+    margin-bottom: 48px;
+    letter-spacing: -0.01em;
+  }
+
+  .cover-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 56px;
+  }
+
+  .pill {
+    padding: 7px 16px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .pill-green  { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #34d399; }
+  .pill-blue   { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; }
+  .pill-amber  { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); color: #fcd34d; }
+  .pill-rose   { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.3);  color: #fca5a5; }
+  .pill-purple { background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3); color: #d8b4fe; }
+  .pill-cyan   { background: rgba(6,182,212,0.12);  border: 1px solid rgba(6,182,212,0.3);  color: #67e8f9; }
+
+  .cover-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    width: 100%;
+    max-width: 560px;
+    margin-top: 8px;
+  }
+
+  .stat-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .stat-num { font-size: 30px; font-weight: 800; color: var(--primary-light); line-height: 1; margin-bottom: 4px; }
+  .stat-label { font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .cover-meta {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--text-dim);
+    font-size: 10.5px;
+    display: flex;
+    gap: 32px;
+  }
+  .cover-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* ─── TOC PAGE ─── */
+  .toc-page {
+    padding: 60px 50px;
+    page-break-after: always;
+    background: var(--bg);
+  }
+
+  .toc-page h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 36px;
+    color: var(--text);
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .toc-num {
+    min-width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+  }
+
+  .toc-text { font-size: 12.5px; font-weight: 500; color: var(--text); }
+  .toc-count { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  /* ─── SECTIONS ─── */
+  .section {
+    padding: 54px 50px 40px;
+    page-break-before: always;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-icon {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .icon-indigo  { background: rgba(99,102,241,0.15); }
+  .icon-green   { background: rgba(16,185,129,0.15); }
+  .icon-amber   { background: rgba(245,158,11,0.15); }
+  .icon-blue    { background: rgba(59,130,246,0.15); }
+  .icon-rose    { background: rgba(239,68,68,0.15);  }
+  .icon-purple  { background: rgba(168,85,247,0.15); }
+  .icon-cyan    { background: rgba(6,182,212,0.15);  }
+  .icon-slate   { background: rgba(100,116,139,0.2); }
+  .icon-orange  { background: rgba(249,115,22,0.15); }
+  .icon-teal    { background: rgba(20,184,166,0.15); }
+
+  .section-title { font-size: 24px; font-weight: 700; color: var(--text); }
+  .section-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  h3.sub-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 28px 0 14px; }
+  h3.sub-title:first-child { margin-top: 0; }
+  p.lead { color: var(--text-muted); margin-bottom: 14px; line-height: 1.7; }
+
+  /* ─── Q&A CARDS ─── */
+  .qa-block {
+    margin-bottom: 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .question {
+    background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02));
+    border-left: 3px solid var(--primary);
+    padding: 14px 18px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #c7d2fe;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .q-icon {
+    min-width: 20px; height: 20px;
+    background: var(--primary);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800; color: #fff;
+    margin-top: 1px;
+  }
+
+  .answer {
+    background: var(--surface);
+    padding: 16px 18px 16px 48px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .answer p { margin-bottom: 10px; }
+  .answer p:last-child { margin-bottom: 0; }
+  .answer strong { color: var(--text); font-weight: 600; }
+  .answer ul, .answer ol { padding-left: 18px; margin: 8px 0; }
+  .answer li { margin-bottom: 5px; }
+
+  /* ─── INLINE CODE / CODE BLOCKS ─── */
+  code {
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #a5b4fc;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #e2e8f0;
+    white-space: pre-wrap;
+  }
+
+  /* ─── HIGHLIGHT BOXES ─── */
+  .highlight-box {
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .hl-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+  .hl-green  { background: rgba(16,185,129,0.08); border-left: 3px solid #10b981; }
+  .hl-amber  { background: rgba(245,158,11,0.08); border-left: 3px solid #f59e0b; }
+  .hl-blue   { background: rgba(59,130,246,0.08); border-left: 3px solid #3b82f6; }
+  .hl-red    { background: rgba(239,68,68,0.08);  border-left: 3px solid #ef4444; }
+  .hl-purple { background: rgba(168,85,247,0.08); border-left: 3px solid #a855f7; }
+  .highlight-box .hl-content { color: var(--text-muted); line-height: 1.65; }
+  .highlight-box strong { color: var(--text); }
+
+  /* ─── FLOW DIAGRAM ─── */
+  .flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0;
+    padding: 14px 16px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .flow-step {
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.3);
+    color: #c7d2fe;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .flow-arrow { color: var(--text-dim); font-size: 14px; font-weight: 300; }
+
+  /* ─── TABLES ─── */
+  .table-wrap { margin: 12px 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: rgba(99,102,241,0.12); }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: #a5b4fc;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .check { color: #34d399; font-weight: 700; }
+  .cross { color: #f87171; font-weight: 700; }
+  .partial { color: #fbbf24; font-weight: 700; }
+  .req-yes { color: #fca5a5; font-weight: 700; }
+  .req-no  { color: #6ee7b7; font-weight: 700; }
+
+  /* ─── ARCH DIAGRAM ─── */
+  .arch {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.8;
+    color: #94a3b8;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .arch .layer { color: #a5b4fc; font-weight: 600; }
+  .arch .arrow { color: #475569; }
+  .arch .box   { color: #e2e8f0; }
+  .arch .note  { color: #34d399; }
+
+  /* ─── CHECKLIST ─── */
+  .checklist { margin: 12px 0; }
+  .check-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .check-item:last-child { border-bottom: none; }
+  .check-box {
+    width: 16px; height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* ─── SECTION DIVIDER ─── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 28px 0;
+  }
+
+  /* ─── TAGS ─── */
+  .limit-tag, .done-tag, .opt-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .limit-tag { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; }
+  .done-tag  { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #6ee7b7; }
+  .opt-tag   { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); color: #fcd34d; }
+
+  /* ─── SCREENSHOT PLACEHOLDER ─── */
+  .screenshot-placeholder {
+    margin: 14px 0;
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    background: repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.02),
+      rgba(255,255,255,0.02) 10px,
+      rgba(255,255,255,0.04) 10px,
+      rgba(255,255,255,0.04) 20px
+    );
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+  .screenshot-placeholder .ph-icon { font-size: 26px; margin-bottom: 10px; }
+  .screenshot-placeholder .ph-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+  .screenshot-placeholder .ph-hint { font-size: 10.5px; margin-top: 4px; color: var(--text-dim); }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    padding: 40px 50px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .footer-logo { font-size: 16px; font-weight: 800; color: var(--primary-light); }
+
+  /* ─── PRINT ─── */
+  @media print {
+    body { font-size: 12px; }
+    .cover { page-break-after: always; }
+    .section { page-break-before: always; }
+    .toc-page { page-break-after: always; }
+    .qa-block { page-break-inside: avoid; }
+    .screenshot-placeholder { page-break-inside: avoid; }
+  }
+
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     COVER PAGE
+══════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-badge">📋 Functionality &amp; Technical Specification</div>
+  <h1>SchedulerAI</h1>
+  <p class="cover-sub">One sentence → a scheduled meeting, with invites, conflict checks, and a video link</p>
+
+  <div class="cover-pills">
+    <span class="pill pill-blue">React 18 + Vite</span>
+    <span class="pill pill-green">Node.js + Express</span>
+    <span class="pill pill-amber">MongoDB + Mongoose</span>
+    <span class="pill pill-purple">Groq / OpenAI / Claude / Gemini</span>
+    <span class="pill pill-cyan">Google Calendar + Outlook</span>
+    <span class="pill pill-rose">Zoom + Teams + Google Meet</span>
+  </div>
+
+  <div class="cover-stats">
+    <div class="stat-box">
+      <div class="stat-num">10s</div>
+      <div class="stat-label">to schedule a meeting</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">2</div>
+      <div class="stat-label">AI calls per meeting</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">~$0.00</div>
+      <div class="stat-label">cost per meeting (Groq free tier)</div>
+    </div>
+  </div>
+
+  <div class="cover-meta">
+    <span>📅 2026-06-18</span>
+    <span>👤 Biswajit Singha</span>
+    <span>🔖 v1.0</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TABLE OF CONTENTS
+══════════════════════════════════════════ -->
+<div class="toc-page">
+  <h2>Table of Contents</h2>
+  <div class="toc-grid">
+    <div class="toc-item"><div class="toc-num">1</div><div><div class="toc-text">Product Overview</div><div class="toc-count">Who it's for</div></div></div>
+    <div class="toc-item"><div class="toc-num">2</div><div><div class="toc-text">Functionality</div><div class="toc-count">Outputs · Q&amp;A flow · entry points</div></div></div>
+    <div class="toc-item"><div class="toc-num">3</div><div><div class="toc-text">Conversational Architecture</div><div class="toc-count">State machine + shared schema</div></div></div>
+    <div class="toc-item"><div class="toc-num">4</div><div><div class="toc-text">Services — Technical Detail</div><div class="toc-count">9 services</div></div></div>
+    <div class="toc-item"><div class="toc-num">5</div><div><div class="toc-text">Technical Stack</div><div class="toc-count">Frontend / backend / integrations</div></div></div>
+    <div class="toc-item"><div class="toc-num">6</div><div><div class="toc-text">Project Structure</div><div class="toc-count">Directory map</div></div></div>
+    <div class="toc-item"><div class="toc-num">7</div><div><div class="toc-text">API Reference</div><div class="toc-count">30+ REST endpoints</div></div></div>
+    <div class="toc-item"><div class="toc-num">8</div><div><div class="toc-text">Environment Variables</div><div class="toc-count">Required vs optional</div></div></div>
+    <div class="toc-item"><div class="toc-num">9</div><div><div class="toc-text">Cost Breakdown</div><div class="toc-count">Tokens + $ per meeting</div></div></div>
+    <div class="toc-item"><div class="toc-num">10</div><div><div class="toc-text">Troubleshooting</div><div class="toc-count">Symptom → cause → fix</div></div></div>
+    <div class="toc-item"><div class="toc-num">11</div><div><div class="toc-text">Screenshots</div><div class="toc-count">10 placeholders</div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 1 — PRODUCT OVERVIEW
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-indigo">🚀</div>
+    <div>
+      <div class="section-title">1. Product Overview</div>
+      <div class="section-subtitle">What SchedulerAI is and who it's built for</div>
+    </div>
+  </div>
+
+  <p class="lead">SchedulerAI is an AI-powered conversational meeting scheduler. A user describes a meeting in one plain-English sentence in a chat interface; the system extracts the meeting details, checks calendar availability across connected providers, resolves conflicts, lets the user pick a video platform, and creates the event with invites and a join link automatically — with no manual calendar work.</p>
+
+  <h3 class="sub-title">1.1 Who It's For</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Segment</th><th>Use Case</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Individual professionals / managers</strong></td><td>Schedule 5+ meetings a week without manual calendar juggling, slot-checking, or copy-pasting video links</td></tr>
+        <tr><td><strong>Executive assistants / admins</strong></td><td>Schedule on behalf of others quickly from natural-language requests, with conflict checks already done</td></tr>
+        <tr><td><strong>Sales / recruiting teams</strong></td><td>Book external calls fast across multiple meeting platforms depending on client preference (Zoom, Teams, Meet)</td></tr>
+        <tr><td><strong>Consultants / freelancers</strong></td><td>Keep multiple calendars (Google + Outlook) conflict-checked together when booking client time</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 2 — FUNCTIONALITY
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-green">⚙️</div>
+    <div>
+      <div class="section-title">2. Functionality</div>
+      <div class="section-subtitle">What it produces, the conversational Q&amp;A flow, and entry points</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">2.1 What It Produces</h3>
+  <p class="lead">A single chat exchange produces, in this order: (1) a structured meeting object extracted from free text, (2) a calendar event created on the user's primary connected calendar (Google or Outlook), (3) a video-meeting join link on the selected platform (Google Meet, Zoom, or Microsoft Teams), (4) calendar invites auto-sent to all participants, and (5) an AI-written one-paragraph confirmation summary shown in the chat.</p>
+
+  <h3 class="sub-title">2.2 Conversational Validator — Missing-Field Q&amp;A</h3>
+  <p class="lead">Before a meeting can be scheduled, the chat asks targeted follow-up questions for any field the AI extraction step couldn't fill. This logic lives in <code>MeetingService.findMissingFields()</code> and is asked one field at a time, in this fixed order:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Order</th><th>Field</th><th>Question Asked</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>meeting_title</code></td><td>"What is the meeting about?"</td></tr>
+        <tr><td>2</td><td><code>participants</code></td><td>"Who should be invited? List their names separated by commas, or type 'just me' to skip."</td></tr>
+        <tr><td>3</td><td><code>email_&lt;name&gt;</code> (per participant)</td><td>"What is the email address for &lt;name&gt;?" — only asked if the email can't be resolved from contacts or calendar history</td></tr>
+        <tr><td>4</td><td><code>date</code></td><td>"Please provide the meeting date."</td></tr>
+        <tr><td>5</td><td><code>time</code></td><td>"Please provide the meeting time."</td></tr>
+        <tr><td>6</td><td><code>duration</code></td><td>"Please provide the meeting duration (e.g. 30 min, 1 hour)."</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box hl-blue">
+    <div class="hl-icon">💡</div>
+    <div class="hl-content">A user can answer multiple fields in one reply — e.g. "tomorrow 3pm for 30 min" fills <strong>date</strong>, <strong>time</strong>, and <strong>duration</strong> at once. The frontend extracts whatever it can from each answer before re-checking what's still missing.</div>
+  </div>
+
+  <h3 class="sub-title">2.3 Confirmation &amp; Inline Editing (CONFIRM phase)</h3>
+  <p class="lead">Once all required fields are filled, the chat shows a summary (title, date, time, attendees, duration, task, owner) and asks the user to reply "confirm" or describe a change. Inline edits are supported in natural language — e.g. "change time to 5pm", "make it 2 hours", "add John as attendee" — parsed and applied without restarting the flow.</p>
+
+  <h3 class="sub-title">2.4 Platform &amp; Slot Selection</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Step</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td>Platform selection</td><td>If the user named a platform explicitly ("use Zoom"), it's auto-selected. If exactly one meeting platform is connected, it's auto-selected. Otherwise the user is shown buttons for each connected platform.</td></tr>
+        <tr><td>Slot selection (date + time given)</td><td>A smart conflict check runs against the connected calendar(s). If free, the requested slot is shown for direct confirm. If busy, the nearest 3-5 free alternatives are offered.</td></tr>
+        <tr><td>Slot selection (date only)</td><td>All free slots for that day are listed for the user to pick from.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">2.5 Alternate Entry Points — Sign-In Providers</h3>
+  <p class="lead">The chat itself only has one entry point (typed text), but the application is gated behind sign-in, which supports two OAuth providers as alternate "ways in" before a user reaches the chat: Google and Microsoft. Five additional OAuth flows exist for connecting calendars/platforms <em>after</em> sign-in: Zoom, Microsoft Teams, and Outlook Calendar (see Section 7, Auth routes).</p>
+
+  <h3 class="sub-title">2.6 End-to-End User Flow</h3>
+  <div class="arch">User opens landing page
+   |
+   +-- Sign in with Google ----+
+   +-- Sign in with Microsoft -+--&gt; authenticated session
+   |
+   v
+Dashboard (chat + today's agenda)
+   |
+   v
+User types: "Schedule a sync with Alice tomorrow at 3pm for 30 min"
+   |
+   v
+POST /api/meetings/extract  -&gt;  AI parses text into structured meeting(s)
+   |
+   +-- missing fields? --&gt; conversational Q&amp;A (Section 2.2) --+
+   |                                                            |
+   v                                                            |
+Confirmation summary  &lt;--------------------------------------------+
+   |
+   v
+Platform selection (if &gt;1 connected)  -&gt;  Slot selection / conflict check
+   |
+   v
+Email resolution for any unconfirmed participant
+   |
+   v
+POST /api/meetings/schedule  -&gt;  event created + invites sent + join link generated
+   |
+   v
+Confirmation card: title, time, attendees, join link, calendar link</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 3 — CONVERSATIONAL ARCHITECTURE
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-purple">🧩</div>
+    <div>
+      <div class="section-title">3. Conversational Architecture</div>
+      <div class="section-subtitle">Frontend state machine + shared meeting schema + request protocol</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">3.1 Orchestration — useChatFlow Phase State Machine</h3>
+  <p class="lead">Unlike a linear agent pipeline, the chat is a client-side state machine (<code>frontend/src/hooks/useChatFlow.js</code>) that routes each user message to a handler based on the current phase, then transitions to the next phase. There is no SSE streaming — every step is a discrete REST call.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>IDLE</code></td><td>Awaiting a new scheduling request, or just finished one</td></tr>
+        <tr><td><code>PICKING</code></td><td>User is choosing which of several extracted meetings to proceed with</td></tr>
+        <tr><td><code>MISSING</code></td><td>Asking the field-by-field Q&amp;A from Section 2.2</td></tr>
+        <tr><td><code>EMAIL_CONFIRM</code></td><td>Resolving/confirming a participant's email address</td></tr>
+        <tr><td><code>CONFIRM</code></td><td>Showing the summary, accepting "confirm" or an inline edit</td></tr>
+        <tr><td><code>PLATFORM</code></td><td>User picking a meeting platform from connected options</td></tr>
+        <tr><td><code>SLOTS</code></td><td>User picking a time slot from available options</td></tr>
+        <tr><td><code>DONE</code></td><td>Meeting scheduled; ready for the next request</td></tr>
+        <tr><td><code>CANCEL_CONFIRM</code></td><td>Confirming a meeting cancellation ("Are you sure?")</td></tr>
+        <tr><td><code>RESCHEDULE_TIME</code> / <code>RESCHEDULE_CONFIRM</code></td><td>Collecting and confirming a new time for an existing meeting</td></tr>
+        <tr><td><code>FOLLOW_UP_SELECT</code></td><td>User picking which past meeting to schedule a follow-up to</td></tr>
+        <tr><td><code>NEEDS_NEW_TIME</code></td><td>Requested time was in the past; asking for a future time</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">3.2 Shared Meeting Schema</h3>
+  <p class="lead">Every phase reads and writes the same meeting object, defined by the extraction prompt in <code>backend/src/services/PromptBuilder.js</code>:</p>
+
+  <pre>{
+  "id": "unique-id-1",
+  "meeting_title": "string | null",      // concise title, never invented
+  "participants": ["Full Name 1", ...],
+  "participant_emails": { "Full Name 1": "email | null" },
+  "task": "string",                       // what needs to be done
+  "owner": "string | null",               // person responsible
+  "deadline": "YYYY-MM-DD | null",
+  "date": "YYYY-MM-DD | null",
+  "time": "HH:MM (24h) | null",           // start time only, never a duration phrase
+  "duration": "number (minutes) | null"   // never defaulted — always asked if missing
+}</pre>
+
+  <h3 class="sub-title">3.3 Request/Response Protocol</h3>
+  <p class="lead">Plain REST + JSON, not Server-Sent Events. Each chat phase maps to one backend call:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>Endpoint Called</th></tr></thead>
+      <tbody>
+        <tr><td>Extraction</td><td><code>POST /api/meetings/extract</code></td></tr>
+        <tr><td>Re-validate after Q&amp;A answers</td><td><code>POST /api/meetings/validate</code></td></tr>
+        <tr><td>Slot listing (date only)</td><td><code>GET /api/meetings/slots</code></td></tr>
+        <tr><td>Smart conflict check (date + time)</td><td><code>GET /api/meetings/suggest</code></td></tr>
+        <tr><td>Connected platforms list</td><td><code>GET /api/integrations</code></td></tr>
+        <tr><td>Final scheduling</td><td><code>POST /api/meetings/schedule</code></td></tr>
+        <tr><td>Confirmation summary text</td><td><code>POST /api/meetings/summary</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 4 — SERVICES, TECHNICAL DETAIL
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-amber">🛠️</div>
+    <div>
+      <div class="section-title">4. Services — Technical Detail</div>
+      <div class="section-subtitle">backend/src/services/*.js and backend/src/meetingPlatforms/*.js</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">4.1 PromptBuilder — AI Prompt Construction</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>Role</strong></td><td>Builds the extraction prompt and the summary prompt sent to the active AI provider</td></tr>
+        <tr><td><strong>AI calls</strong></td><td>2 per meeting — 1 extraction, 1 summary</td></tr>
+        <tr><td><strong>Provider</strong></td><td>Routed via <code>ProviderFactory</code> — supports <code>groq</code> (default), <code>openai</code>, <code>claude</code>, <code>gemini</code>, selected by <code>AI_PROVIDER</code> env var</td></tr>
+        <tr><td><strong>Date handling</strong></td><td>All relative dates ("tomorrow", "next Friday", "asap") are resolved against the server's current date/time before being sent to the model</td></tr>
+        <tr><td><strong>Guardrail</strong></td><td>Never invents a title or defaults a duration — both are left <code>null</code> and routed to the Q&amp;A flow if the user didn't state them</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">4.2 MeetingService — Orchestrator</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>Role</strong></td><td>Coordinates extraction → missing-field detection → availability check → platform creation → invite sending → summary</td></tr>
+        <tr><td><strong>Key methods</strong></td><td><code>extractMeetingInfo()</code>, <code>findMissingFields()</code>, <code>applyFieldAnswers()</code>, <code>checkCalendarAvailability()</code>, <code>smartSuggestSlots()</code>, <code>createGoogleMeeting()</code>, <code>sendInvites()</code>, <code>generateSummary()</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">4.3 ConflictService — Slot Availability</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>Role</strong></td><td>Pure logic, no AI — computes free/busy slots and checks a specific slot for conflicts</td></tr>
+        <tr><td><strong>Multi-calendar</strong></td><td><code>getAvailabilityFromBoth()</code> merges Google + Outlook busy times before computing free slots</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">4.4 CalendarService &amp; OutlookCalendarService</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>CalendarService</strong></td><td>Google Calendar API wrapper — <code>getEvents()</code>, <code>createEvent()</code> (with optional Google Meet link via <code>conferenceData</code>), <code>updateEvent()</code>, <code>deleteEvent()</code>, <code>searchAttendees()</code>, <code>getRecentMeetings()</code></td></tr>
+        <tr><td><strong>OutlookCalendarService</strong></td><td>Microsoft Graph API mirror of the same methods; extracts Teams join URLs from <code>onlineMeeting.joinUrl</code> when present</td></tr>
+        <tr><td><strong>Demo fallback</strong></td><td>If the user isn't authenticated with a calendar provider, calendar reads/writes fall back to mock data rather than failing the chat</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">4.5 Meeting Platform Providers</h3>
+  <p class="lead">Common interface defined in <code>MeetingPlatformProvider.js</code> (<code>createMeeting</code>, <code>updateMeeting</code>, <code>cancelMeeting</code>, <code>getMeetingDetails</code>), instantiated by <code>PlatformFactory.create(platform)</code>.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Provider</th><th>Status</th><th>Flow</th></tr></thead>
+      <tbody>
+        <tr><td>Google Meet</td><td class="check">✓ Implemented</td><td>Delegates to CalendarService — Google auto-generates the Meet link via <code>conferenceData</code></td></tr>
+        <tr><td>Zoom</td><td class="check">✓ Implemented</td><td>Creates a Zoom meeting via the Zoom API, then embeds the join URL in the Google Calendar event description</td></tr>
+        <tr><td>Microsoft Teams</td><td class="check">✓ Implemented</td><td>Tries to create a Teams online meeting via Graph API for a real join URL; on personal-account failure, falls back to Outlook's <code>isOnlineMeeting: true</code> auto-generated link</td></tr>
+        <tr><td>Webex</td><td class="cross">✗ Stub</td><td>All methods throw "not yet configured" — registered in the factory but not implemented</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">4.6 IntegrationService — Provider Registry</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>Role</strong></td><td>Reports which calendar/meeting providers a given user has connected, and their default choice, by reading <code>providerRegistry.js</code> against the user's stored tokens</td></tr>
+        <tr><td><strong>No AI calls</strong></td><td>Pure registry lookup, used to populate the PLATFORM-phase selection buttons</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 5 — TECHNICAL STACK
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-blue">🧱</div>
+    <div>
+      <div class="section-title">5. Technical Stack</div>
+      <div class="section-subtitle">Frameworks, libraries, and external APIs in use</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend Framework</td><td>React 18 + Vite</td></tr>
+        <tr><td>Styling</td><td>Tailwind CSS</td></tr>
+        <tr><td>Backend Framework</td><td>Node.js + Express</td></tr>
+        <tr><td>Database</td><td>MongoDB + Mongoose</td></tr>
+        <tr><td>Session Store</td><td><code>express-session</code></td></tr>
+        <tr><td>AI Providers (pluggable)</td><td>Groq (Llama 3.3 70B, default), OpenAI (GPT-4o), Anthropic Claude, Google Gemini</td></tr>
+        <tr><td>Calendar APIs</td><td>Google Calendar API, Microsoft Graph (Outlook Calendar)</td></tr>
+        <tr><td>Meeting Platform APIs</td><td>Google Meet (via Calendar conferenceData), Zoom API, Microsoft Teams (Graph API)</td></tr>
+        <tr><td>Auth</td><td>OAuth2 — Google Sign-In, Microsoft Sign-In, plus separate Zoom/Teams/Outlook connection flows</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 6 — PROJECT STRUCTURE
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-teal">📁</div>
+    <div>
+      <div class="section-title">6. Project Structure</div>
+      <div class="section-subtitle">Key directories and their purpose</div>
+    </div>
+  </div>
+
+  <pre>SchedulerAi/
+├── backend/
+│   ├── server.js                       # Express entry point
+│   ├── .env.example                    # All env vars documented
+│   └── src/
+│       ├── routes/
+│       │   ├── meetingRoutes.js        # Meetings, agenda, auth, integrations, contacts
+│       │   └── adminRoutes.js          # Admin-only provider config (requires session auth)
+│       ├── controllers/
+│       │   ├── MeetingController.js
+│       │   ├── ContactController.js
+│       │   └── AdminController.js
+│       ├── services/
+│       │   ├── PromptBuilder.js        # AI prompt construction
+│       │   ├── MeetingService.js       # Orchestrator
+│       │   ├── ConflictService.js      # Slot/availability logic
+│       │   ├── CalendarService.js      # Google Calendar wrapper
+│       │   ├── OutlookCalendarService.js # Microsoft Graph wrapper
+│       │   ├── AgendaService.js        # Today's agenda view
+│       │   └── IntegrationService.js   # Connected-provider registry lookups
+│       ├── meetingPlatforms/
+│       │   ├── MeetingPlatformProvider.js  # Abstract base
+│       │   ├── PlatformFactory.js
+│       │   ├── GoogleMeetProvider.js
+│       │   ├── ZoomProvider.js
+│       │   ├── TeamsProvider.js
+│       │   └── WebexProvider.js        # Stub
+│       ├── providers/
+│       │   ├── ProviderFactory.js      # AI provider selector (Groq/OpenAI/Claude/Gemini)
+│       │   └── auth/                   # Auth provider registry (Google, Microsoft)
+│       ├── config/
+│       │   ├── googleAuth.js, outlookAuth.js, teamsAuth.js, microsoftSignInAuth.js
+│       │   └── providerRegistry.js     # Static CALENDAR_PROVIDERS / MEETING_PROVIDERS list
+│       └── models/
+│           ├── User.js                 # Tokens, preferences, contacts
+│           └── ProviderSettings.js     # Admin-managed per-provider config
+└── frontend/
+    └── src/
+        ├── hooks/
+        │   └── useChatFlow.js          # Conversational phase state machine
+        ├── components/
+        │   └── ChatInterface.jsx       # Message rendering + interactive cards
+        └── pages/
+            ├── LandingPage.jsx
+            ├── Dashboard.jsx
+            ├── UserSettings.jsx
+            └── AdminSettings.jsx</pre>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 7 — API REFERENCE
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-rose">🔌</div>
+    <div>
+      <div class="section-title">7. API Reference</div>
+      <div class="section-subtitle">All REST endpoints — backend/src/routes/meetingRoutes.js + adminRoutes.js</div>
+    </div>
+  </div>
+
+  <h3 class="sub-title">7.1 Meetings</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/api/meetings/extract</code></td><td>AI extracts structured meeting(s) from free text</td></tr>
+        <tr><td>POST</td><td><code>/api/meetings/validate</code></td><td>Re-validates a meeting after Q&amp;A answers are applied</td></tr>
+        <tr><td>GET</td><td><code>/api/meetings/slots</code></td><td>Free time slots for a given date</td></tr>
+        <tr><td>GET</td><td><code>/api/meetings/suggest</code></td><td>Smart conflict check + nearest-alternative suggestions</td></tr>
+        <tr><td>POST</td><td><code>/api/meetings/summary</code></td><td>AI-generated confirmation paragraph</td></tr>
+        <tr><td>POST</td><td><code>/api/meetings/schedule</code></td><td>Creates the calendar event, meeting link, and sends invites</td></tr>
+        <tr><td>GET</td><td><code>/api/meetings/recent</code></td><td>Recent meetings (last 14 days) for follow-up scheduling</td></tr>
+        <tr><td>GET</td><td><code>/api/meetings</code></td><td>List meetings</td></tr>
+        <tr><td>DELETE</td><td><code>/api/meetings/:eventId</code></td><td>Cancel a meeting</td></tr>
+        <tr><td>PATCH</td><td><code>/api/meetings/:eventId/reschedule</code></td><td>Reschedule a meeting</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">7.2 Agenda</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/agenda/today</code></td><td>Today's meetings + free slots</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">7.3 Authentication</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/auth/providers</code></td><td>List available sign-in providers (dynamic registry)</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/google</code> / <code>/callback</code></td><td>Google OAuth2 sign-in flow</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/microsoft</code> / <code>/callback</code></td><td>Microsoft OAuth2 sign-in flow</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/status</code></td><td>Check current session auth status</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/me</code></td><td>Current user profile</td></tr>
+        <tr><td>POST</td><td><code>/api/auth/logout</code></td><td>Clear session</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/diagnostics</code></td><td>Auth/session debug info</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/zoom</code> / <code>/callback</code> / <code>/status</code>; POST <code>/disconnect</code></td><td>Zoom OAuth connection (meeting platform)</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/teams</code> / <code>/callback</code> / <code>/status</code>; POST <code>/disconnect</code></td><td>Microsoft Teams OAuth connection</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/outlook</code> / <code>/callback</code> / <code>/status</code>; POST <code>/disconnect</code></td><td>Outlook Calendar OAuth connection</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">7.4 Integrations, Preferences &amp; Contacts</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/integrations</code></td><td>Connected calendar/meeting providers summary</td></tr>
+        <tr><td>PATCH</td><td><code>/api/user/preferences</code></td><td>Update timezone, default providers, preferred duration</td></tr>
+        <tr><td>GET</td><td><code>/api/contacts</code></td><td>Saved contacts</td></tr>
+        <tr><td>GET</td><td><code>/api/contacts/calendar-search</code></td><td>Search a participant name in calendar attendee history</td></tr>
+        <tr><td>GET</td><td><code>/api/contacts/google-search</code></td><td>Search via Google Contacts API</td></tr>
+        <tr><td>POST</td><td><code>/api/contacts</code></td><td>Save contact(s)</td></tr>
+        <tr><td>DELETE</td><td><code>/api/contacts/:email</code></td><td>Delete a saved contact</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">7.5 Admin (requires authenticated session)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/admin/providers</code></td><td>List AI/calendar/meeting provider settings</td></tr>
+        <tr><td>PATCH</td><td><code>/api/admin/providers/:name</code></td><td>Enable/disable or reconfigure a provider</td></tr>
+        <tr><td>PATCH</td><td><code>/api/admin/config</code></td><td>Update global configuration</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="sub-title">7.6 Health</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/health</code></td><td>Service status + active AI provider</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 8 — ENVIRONMENT VARIABLES
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-orange">🔑</div>
+    <div>
+      <div class="section-title">8. Environment Variables</div>
+      <div class="section-subtitle">backend/.env.example — required vs optional</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Variable</th><th>Purpose</th><th>Required?</th></tr></thead>
+      <tbody>
+        <tr><td><code>PORT</code></td><td>Express server port (default 3001)</td><td class="req-no">No</td></tr>
+        <tr><td><code>NODE_ENV</code></td><td>development / production</td><td class="req-no">No</td></tr>
+        <tr><td><code>FRONTEND_URL</code></td><td>Frontend origin for CORS (default http://localhost:5173)</td><td class="req-no">No</td></tr>
+        <tr><td><code>TIMEZONE</code></td><td>Server timezone for date calculations</td><td class="req-no">No</td></tr>
+        <tr><td><code>SESSION_SECRET</code></td><td>express-session cookie encryption secret</td><td class="req-yes">Yes</td></tr>
+        <tr><td><code>MONGODB_URI</code></td><td>MongoDB connection string</td><td class="req-yes">Yes</td></tr>
+        <tr><td><code>AI_PROVIDER</code></td><td>Selects active AI backend: groq / openai / claude / gemini (default groq)</td><td class="req-no">No</td></tr>
+        <tr><td><code>GROQ_API_KEY</code> + <code>GROQ_MODEL</code></td><td>Required only if <code>AI_PROVIDER=groq</code> (the default)</td><td class="req-yes">Conditional</td></tr>
+        <tr><td><code>OPENAI_API_KEY</code> + <code>OPENAI_MODEL</code></td><td>Required only if <code>AI_PROVIDER=openai</code></td><td class="req-no">Conditional</td></tr>
+        <tr><td><code>CLAUDE_API_KEY</code> + <code>CLAUDE_MODEL</code></td><td>Required only if <code>AI_PROVIDER=claude</code></td><td class="req-no">Conditional</td></tr>
+        <tr><td><code>GEMINI_API_KEY</code> + <code>GEMINI_MODEL</code></td><td>Required only if <code>AI_PROVIDER=gemini</code></td><td class="req-no">Conditional</td></tr>
+        <tr><td><code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> / <code>GOOGLE_REDIRECT_URI</code></td><td>Google sign-in + Google Calendar OAuth2</td><td class="req-yes">Yes</td></tr>
+        <tr><td><code>ZOOM_CLIENT_ID</code> / <code>ZOOM_CLIENT_SECRET</code> / <code>ZOOM_REDIRECT_URI</code></td><td>Zoom OAuth — only needed if Zoom is offered as a meeting platform</td><td class="req-no">No</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box hl-amber">
+    <div class="hl-icon">⚠️</div>
+    <div class="hl-content">Only <strong>one</strong> AI provider key is required — whichever matches <code>AI_PROVIDER</code>. <code>ProviderFactory.create()</code> throws immediately at startup if <code>AI_PROVIDER</code> is set to an unsupported value, so a typo here fails fast rather than degrading silently.</div>
+  </div>
+
+  <div class="highlight-box hl-green">
+    <div class="hl-icon">✅</div>
+    <div class="hl-content">Optional integration keys (Zoom, and by extension Teams/Outlook/Webex credentials configured elsewhere) degrade gracefully: <code>providerRegistry.js</code> only marks a meeting/calendar provider <code>available</code> if it's been implemented and connected — the chat's platform-selection step simply won't offer an unconnected provider, rather than crashing.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 9 — COST BREAKDOWN
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-cyan">💰</div>
+    <div>
+      <div class="section-title">9. Cost Breakdown</div>
+      <div class="section-subtitle">2 AI calls per meeting — figures from SchedulerAI_DemoScript.html, Section 6</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>AI Call</th><th>Input Tokens</th><th>Output Tokens</th><th>Total</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Extraction</td><td>~750</td><td>~250</td><td>~1,000</td><td>Parse user text → JSON</td></tr>
+        <tr><td>Summary</td><td>~250</td><td>~150</td><td>~400</td><td>Generate confirmation paragraph</td></tr>
+        <tr style="background: rgba(99,102,241,0.05);"><td><strong>Total</strong></td><td><strong>~1,000</strong></td><td><strong>~400</strong></td><td><strong>~1,400</strong></td><td>Per complete meeting scheduling</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>AI Provider</th><th>Cost per Meeting</th><th>Cost per 1,000 Meetings</th><th>Free Tier</th></tr></thead>
+      <tbody>
+        <tr><td>Groq (Llama 3.3 70B) — default</td><td><span class="pill pill-green">$0.00</span></td><td><span class="pill pill-green">$0.00</span></td><td>500,000 tokens/day free</td></tr>
+        <tr><td>OpenAI GPT-4o</td><td>~$0.004</td><td>~$4.00</td><td>No free tier</td></tr>
+        <tr><td>Anthropic Claude Haiku</td><td>~$0.001</td><td>~$1.00</td><td>No free tier</td></tr>
+        <tr><td>Google Gemini Flash</td><td>~$0.001</td><td>~$1.00</td><td>Limited free tier</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight-box hl-blue">
+    <div class="hl-icon">💡</div>
+    <div class="hl-content">Groq's free tier supports roughly <strong>350 complete meeting schedules per day at zero AI cost</strong>. For very high volume (10,000+ meetings/day), Claude Haiku or Gemini Flash are the most cost-efficient paid fallbacks.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 10 — TROUBLESHOOTING
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-slate">🔧</div>
+    <div>
+      <div class="section-title">10. Troubleshooting</div>
+      <div class="section-subtitle">Symptom → likely cause → fix</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Symptom</th><th>Likely Cause</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td>Server fails to start</td><td><code>MONGODB_URI</code> or <code>SESSION_SECRET</code> missing</td><td>Add the required vars to <code>backend/.env</code> and restart</td></tr>
+        <tr><td>AI extraction errors / 500 on extract</td><td><code>AI_PROVIDER</code> set to an unsupported value, or the matching provider's API key is missing/invalid</td><td>Check <code>AI_PROVIDER</code> spelling and confirm the matching <code>*_API_KEY</code> is set</td></tr>
+        <tr><td>Zoom doesn't appear as a platform option</td><td>User hasn't completed the Zoom OAuth connection, or <code>ZOOM_CLIENT_ID</code>/<code>ZOOM_CLIENT_SECRET</code> not configured</td><td>Connect Zoom from User Settings, or add Zoom credentials and restart</td></tr>
+        <tr><td>Teams meeting has no real join URL</td><td>Signed in with a personal Microsoft account instead of a work/school (Microsoft 365) account</td><td>Expected — falls back to Outlook's auto-generated online-meeting link; use a work account for a dedicated Teams URL</td></tr>
+        <tr><td>Calendar shows demo/mock data</td><td>User hasn't completed Google or Outlook OAuth sign-in</td><td>Sign in via the Google or Microsoft button on the landing page</td></tr>
+        <tr><td>Chat keeps re-asking for an already-given field</td><td>The field wasn't recognized in the user's free-text answer (e.g. ambiguous date phrase)</td><td>Answer with an explicit value, e.g. an exact date or "HH:MM" time instead of a vague phrase like "afternoon"</td></tr>
+        <tr><td>Admin routes return 401</td><td>No authenticated session (<code>req.session.user.email</code> missing)</td><td>Sign in first — admin routes require an active session</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SECTION 11 — SCREENSHOTS
+══════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon icon-indigo">🖼️</div>
+    <div>
+      <div class="section-title">11. Screenshots</div>
+      <div class="section-subtitle">Placeholders — replace each box with an actual screenshot of the running app</div>
+    </div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🖥️</div>
+    <div class="ph-label">Figure 1 — Landing page hero</div>
+    <div class="ph-hint">Public marketing page before sign-in</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">💬</div>
+    <div class="ph-label">Figure 2 — Chat: initial natural-language input</div>
+    <div class="ph-hint">User types a one-sentence scheduling request</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">❓</div>
+    <div class="ph-label">Figure 3 — Chat: missing-field question prompt</div>
+    <div class="ph-hint">MISSING phase — e.g. "What is the meeting about?"</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">✅</div>
+    <div class="ph-label">Figure 4 — Chat: confirmation summary card</div>
+    <div class="ph-hint">CONFIRM phase, with inline-edit support</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🎛️</div>
+    <div class="ph-label">Figure 5 — Chat: platform selection card</div>
+    <div class="ph-hint">PLATFORM phase — Zoom / Teams / Google Meet buttons</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🕒</div>
+    <div class="ph-label">Figure 6 — Chat: slot picker</div>
+    <div class="ph-hint">SLOTS phase — available time slots for the requested date</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🎉</div>
+    <div class="ph-label">Figure 7 — Chat: final confirmation card with join link</div>
+    <div class="ph-hint">Scheduled meeting summary + video join link + calendar link</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">📊</div>
+    <div class="ph-label">Figure 8 — Dashboard with integration status pills</div>
+    <div class="ph-hint">Connected calendar + meeting platform indicators</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">⚙️</div>
+    <div class="ph-label">Figure 9 — User Settings page</div>
+    <div class="ph-hint">Timezone, default duration, default providers, connect/disconnect</div>
+  </div>
+
+  <div class="screenshot-placeholder">
+    <div class="ph-icon">🛡️</div>
+    <div class="ph-label">Figure 10 — Admin Settings page</div>
+    <div class="ph-hint">Provider enable/disable + config panel</div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footer-logo">SchedulerAI</div>
+  <div>Functionality &amp; Technical Specification · v1.0 · 2026-06-18</div>
+</div>
+
+</body>
+</html>
