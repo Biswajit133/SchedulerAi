@@ -42,7 +42,7 @@ const MEETING_PROVIDERS = [
     authKey: 'zoomTokens',
     requiresCalendar: null,
     authRoute: '/auth/zoom',
-    available: false,
+    available: true,   // OAuth app credentials come from Admin Settings or ZOOM_CLIENT_ID/SECRET/REDIRECT_URI
   },
   {
     id: 'teams',

@@ -117,6 +117,99 @@ function ProviderRow({ provider, saving, onToggle, isDefault, onSetDefault, show
   );
 }
 
+// ─── Zoom credentials form ────────────────────────────────────────────────────
+// Lets an admin plug in their own Zoom OAuth app (Client ID/Secret) instead of
+// relying on server-level ZOOM_CLIENT_ID/SECRET env vars — handy for testing
+// with a personal Zoom app. Only rendered under the Zoom provider row.
+
+function ZoomCredentialsForm({ provider, onSave, saving }) {
+  const cfg = provider.config_json || {};
+  const [open, setOpen] = useState(false);
+  const [clientId, setClientId] = useState(cfg.clientId || '');
+  const [clientSecret, setClientSecret] = useState('');
+  const [redirectUri, setRedirectUri] = useState(cfg.redirectUri || '');
+
+  const isSaving = saving === `${provider.provider_name}__config`;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const payload = { clientId: clientId.trim(), redirectUri: redirectUri.trim() };
+    if (clientSecret.trim()) payload.clientSecret = clientSecret.trim();
+    onSave(payload);
+    setClientSecret('');
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-700/40 bg-slate-900/40 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+      >
+        <span>
+          Your Zoom app credentials
+          {cfg.clientId
+            ? <span className="text-emerald-400/80"> — configured</span>
+            : <span className="text-amber-500/80"> — not set</span>}
+        </span>
+        <span className="text-slate-500">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <form onSubmit={handleSubmit} className="px-4 pb-4 space-y-3 border-t border-slate-800 pt-3">
+          <p className="text-xs text-slate-500">
+            Create an OAuth app at{' '}
+            <span className="text-slate-400">marketplace.zoom.us</span> and paste its credentials
+            here to test Zoom scheduling with your own app instead of the server default.
+          </p>
+
+          <label className="block">
+            <span className="text-xs text-slate-400">Client ID</span>
+            <input
+              type="text"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="Zoom app Client ID"
+              className="mt-1 w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-500"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-slate-400">Client Secret</span>
+            <input
+              type="password"
+              value={clientSecret}
+              onChange={(e) => setClientSecret(e.target.value)}
+              placeholder={cfg.hasClientSecret ? '•••••••• (saved — leave blank to keep)' : 'Zoom app Client Secret'}
+              className="mt-1 w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-500"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-slate-400">Redirect URI</span>
+            <input
+              type="text"
+              value={redirectUri}
+              onChange={(e) => setRedirectUri(e.target.value)}
+              placeholder="https://your-backend-url/api/auth/zoom/callback"
+              className="mt-1 w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-500"
+            />
+            <span className="text-xs text-slate-600">Must match the redirect URI registered in your Zoom app exactly.</span>
+          </label>
+
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="text-xs px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-medium disabled:opacity-50"
+          >
+            {isSaving ? 'Saving…' : 'Save Zoom credentials'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ─── Section card ─────────────────────────────────────────────────────────────
 
 function SectionCard({ icon: Icon, title, subtitle, children }) {
@@ -219,6 +312,26 @@ export default function AdminSettings() {
     }
   };
 
+  const handleSaveProviderConfig = async (providerName, config_json) => {
+    setSaving(`${providerName}__config`);
+    try {
+      const res = await AdminAPI.updateProviderConfig(providerName, config_json);
+      setConfig((prev) => {
+        if (!prev) return prev;
+        const update = (arr) =>
+          arr.map((p) => p.provider_name === providerName
+            ? { ...p, config_json: res.provider?.config_json ?? p.config_json }
+            : p);
+        return { ...prev, meetingProviders: update(prev.meetingProviders || []) };
+      });
+      showToast(`${providerName} credentials saved`, 'success');
+    } catch {
+      showToast(`Failed to save ${providerName} credentials`, 'error');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const handleSetDefault = async (providerName) => {
     setSaving('__default');
     try {
@@ -297,15 +410,23 @@ export default function AdminSettings() {
           subtitle="Choose which video conferencing platforms users can schedule with"
         >
           {(config?.meetingProviders || []).map((p) => (
-            <ProviderRow
-              key={p.provider_name}
-              provider={p}
-              saving={saving}
-              onToggle={handleToggle}
-              showDefault
-              isDefault={config?.defaultMeetingProvider === p.provider_name}
-              onSetDefault={handleSetDefault}
-            />
+            <div key={p.provider_name} className="space-y-2">
+              <ProviderRow
+                provider={p}
+                saving={saving}
+                onToggle={handleToggle}
+                showDefault
+                isDefault={config?.defaultMeetingProvider === p.provider_name}
+                onSetDefault={handleSetDefault}
+              />
+              {p.provider_name === 'zoom' && (
+                <ZoomCredentialsForm
+                  provider={p}
+                  saving={saving}
+                  onSave={(cfg) => handleSaveProviderConfig('zoom', cfg)}
+                />
+              )}
+            </div>
           ))}
         </SectionCard>
 

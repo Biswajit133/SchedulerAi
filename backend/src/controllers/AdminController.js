@@ -1,5 +1,6 @@
 const ProviderSettings  = require('../models/ProviderSettings');
 const AuthProviderRegistry = require('../providers/auth/AuthProviderRegistry');
+const zoomAuth = require('../config/zoomAuth');
 const { CALENDAR_PROVIDERS, MEETING_PROVIDERS } = require('../config/providerRegistry');
 const { isDBConnected } = require('../config/database');
 
@@ -36,13 +37,22 @@ async function seedProviderSettings() {
     for (const d of ALL_DEFAULTS) {
       await ProviderSettings.findOneAndUpdate(
         { provider_name: d.provider_name },
-        { $set: { provider_type: d.provider_type, is_enabled: d.is_enabled } },
+        {
+          $set: { provider_type: d.provider_type },
+          // Only seed is_enabled the first time a row is created — an admin's
+          // saved toggle must survive server restarts, not get reset to the default.
+          $setOnInsert: { is_enabled: d.is_enabled },
+        },
         { upsert: true }
       );
     }
     // Push DB settings into the in-memory registry
     const settings = await ProviderSettings.find({ provider_type: 'auth' }).lean();
     AuthProviderRegistry.applySettings(settings);
+
+    // Load any saved Zoom app credentials into the in-memory cache used by zoomAuth.
+    const zoomDoc = await ProviderSettings.findOne({ provider_name: 'zoom' }).lean();
+    zoomAuth.setCredentials(zoomDoc?.config_json || {});
   } catch (err) {
     console.warn('[AdminController] seedProviderSettings failed (non-fatal):', err.message);
   }
@@ -64,6 +74,16 @@ function _authRow(d, dbMap) {
   };
 }
 
+// Strip secrets before a provider row ever reaches the browser. The frontend
+// only needs to know a secret is set (to render a "saved" placeholder), never
+// its value — sending it back would also risk silently re-saving a masked
+// stand-in over the real one.
+function _maskConfig(config_json = {}) {
+  if (!('clientSecret' in config_json)) return config_json;
+  const { clientSecret, ...rest } = config_json;
+  return { ...rest, hasClientSecret: !!clientSecret };
+}
+
 function _meetingRow(d, dbMap) {
   const db   = dbMap[d.provider_name];
   const meta = MEETING_PROVIDERS.find((p) => p.id === d.provider_name) || {};
@@ -74,7 +94,7 @@ function _meetingRow(d, dbMap) {
     description: meta.description || '',
     available: meta.available || false,
     is_enabled: db ? db.is_enabled : d.is_enabled,
-    config_json: db?.config_json || {},
+    config_json: _maskConfig(db?.config_json || {}),
   };
 }
 
@@ -130,36 +150,51 @@ class AdminController {
 
   /**
    * PATCH /api/admin/providers/:name
-   * Toggle a single provider on or off.
-   * Body: { is_enabled: boolean }
+   * Toggle a provider on/off and/or save its config (e.g. Zoom app credentials).
+   * Body: { is_enabled?: boolean, config_json?: object }
+   * config_json is shallow-merged onto whatever is already saved, so partial
+   * edits (e.g. rotating just the secret) don't clobber the rest.
    */
   async updateProvider(req, res) {
     const { name } = req.params;
-    const { is_enabled } = req.body;
+    const { is_enabled, config_json } = req.body;
 
-    if (typeof is_enabled !== 'boolean') {
-      return res.status(400).json({ error: 'is_enabled (boolean) is required' });
+    if (typeof is_enabled !== 'boolean' && (!config_json || typeof config_json !== 'object')) {
+      return res.status(400).json({ error: 'is_enabled (boolean) or config_json (object) is required' });
     }
 
     if (!isDBConnected()) {
       // Apply in-memory only (won't survive restart)
-      AuthProviderRegistry.setEnabled(name, is_enabled);
+      if (typeof is_enabled === 'boolean') AuthProviderRegistry.setEnabled(name, is_enabled);
+      if (name === 'zoom' && config_json) zoomAuth.setCredentials(config_json);
       return res.json({ success: true, persisted: false });
     }
 
     try {
+      const update = {};
+      if (typeof is_enabled === 'boolean') update.is_enabled = is_enabled;
+
+      if (config_json && typeof config_json === 'object') {
+        const existing = await ProviderSettings.findOne({ provider_name: name }).lean();
+        update.config_json = { ...(existing?.config_json || {}), ...config_json };
+      }
+
       const doc = await ProviderSettings.findOneAndUpdate(
         { provider_name: name },
-        { $set: { is_enabled } },
+        { $set: update },
         { new: true, upsert: true }
       ).lean();
 
       // Sync auth registry
-      if (doc.provider_type === 'auth') {
+      if (doc.provider_type === 'auth' && typeof is_enabled === 'boolean') {
         AuthProviderRegistry.setEnabled(name, is_enabled);
       }
+      // Push saved Zoom app credentials into the live OAuth flow immediately.
+      if (name === 'zoom') {
+        zoomAuth.setCredentials(doc.config_json || {});
+      }
 
-      res.json({ success: true, persisted: true, provider: doc });
+      res.json({ success: true, persisted: true, provider: { ...doc, config_json: _maskConfig(doc.config_json) } });
     } catch (err) {
       console.error('[AdminController] updateProvider failed:', err.message);
       res.status(500).json({ error: err.message });
