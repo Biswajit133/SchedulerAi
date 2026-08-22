@@ -5,27 +5,55 @@ const User = require('../models/User');
 const ZOOM_AUTH_BASE = 'zoom.us';
 const SCOPES = 'meeting:write:meeting meeting:read:meeting user:read:user';
 
+// Credentials for a Zoom OAuth app, supplied either via Admin Settings (stored
+// in MongoDB) or via ZOOM_CLIENT_ID/SECRET/REDIRECT_URI env vars. The DB copy
+// takes priority so an admin can plug in their own app without touching .env.
+let _dbCredentials = null;
+
+// Called by AdminController on startup and whenever the zoom provider config is saved.
+function setCredentials(config = {}) {
+  const clientId = config.clientId?.trim();
+  const clientSecret = config.clientSecret?.trim();
+  const redirectUri = config.redirectUri?.trim();
+  _dbCredentials = (clientId && clientSecret) ? { clientId, clientSecret, redirectUri } : null;
+}
+
+function _getCredentials() {
+  if (_dbCredentials) {
+    return {
+      clientId: _dbCredentials.clientId,
+      clientSecret: _dbCredentials.clientSecret,
+      redirectUri: _dbCredentials.redirectUri || process.env.ZOOM_REDIRECT_URI,
+    };
+  }
+  return {
+    clientId: process.env.ZOOM_CLIENT_ID,
+    clientSecret: process.env.ZOOM_CLIENT_SECRET,
+    redirectUri: process.env.ZOOM_REDIRECT_URI,
+  };
+}
+
 function getAuthUrl() {
-  const { ZOOM_CLIENT_ID, ZOOM_REDIRECT_URI } = process.env;
-  if (!ZOOM_CLIENT_ID || !ZOOM_REDIRECT_URI) {
-    throw new Error('Zoom OAuth not configured. Add ZOOM_CLIENT_ID and ZOOM_REDIRECT_URI to .env');
+  const { clientId, redirectUri } = _getCredentials();
+  if (!clientId || !redirectUri) {
+    throw new Error('Zoom OAuth not configured. Add your Zoom app credentials in Admin Settings, or set ZOOM_CLIENT_ID/ZOOM_REDIRECT_URI in .env');
   }
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: ZOOM_CLIENT_ID,
-    redirect_uri: ZOOM_REDIRECT_URI,
+    client_id: clientId,
+    redirect_uri: redirectUri,
     scope: SCOPES,
   });
   return `https://${ZOOM_AUTH_BASE}/oauth/authorize?${params.toString()}`;
 }
 
 async function exchangeCode(code, req) {
-  const { ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_REDIRECT_URI } = process.env;
+  const { clientId, clientSecret, redirectUri } = _getCredentials();
   const tokens = await _requestToken({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: ZOOM_REDIRECT_URI,
-  }, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET);
+    redirect_uri: redirectUri,
+  }, clientId, clientSecret);
 
   if (req) {
     req.session.zoomTokens = tokens;
@@ -60,7 +88,7 @@ async function exchangeCode(code, req) {
 }
 
 async function refreshTokens(req) {
-  const { ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET } = process.env;
+  const { clientId, clientSecret } = _getCredentials();
   const existing = req?.session?.zoomTokens;
   if (!existing?.refresh_token) return null;
 
@@ -68,7 +96,7 @@ async function refreshTokens(req) {
     const tokens = await _requestToken({
       grant_type: 'refresh_token',
       refresh_token: existing.refresh_token,
-    }, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET);
+    }, clientId, clientSecret);
 
     req.session.zoomTokens = tokens;
 
@@ -228,6 +256,7 @@ function _fetchProfile(accessToken) {
 }
 
 module.exports = {
+  setCredentials,
   getAuthUrl,
   exchangeCode,
   getAccessToken,

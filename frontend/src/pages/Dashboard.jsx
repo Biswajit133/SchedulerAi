@@ -371,8 +371,8 @@ function TipsCard() {
 }
 
 // ─── Integration pills (navbar) ───────────────────────────────────────────────
-// Shows a pill for each AVAILABLE meeting provider: connected = full color, else "Connect X" button.
-// Unimplemented providers (available: false) are not shown in the navbar.
+// Shows a pill for each meeting provider: connected = full color, available = "Connect X"
+// button, unavailable = blurred/disabled pill (still visible, not clickable).
 
 const PILL_STYLE = {
   google_meet: { color: 'text-teal-400', border: 'border-teal-500/30', dot: 'bg-teal-500' },
@@ -388,8 +388,7 @@ function IntegrationPills({ integrations, connectingProvider, disconnectingProvi
   const calConnected = integrations.calendarProviders?.some((p) => p.connected);
   const calLabel = integrations.calendarProviders?.find((p) => p.connected)?.label || 'Calendar';
 
-  // Only show available (implemented) meeting providers
-  const meetingProviders = (integrations.meetingProviders || []).filter((p) => p.available);
+  const meetingProviders = integrations.meetingProviders || [];
 
   return (
     <div className="flex items-center gap-2">
@@ -426,6 +425,19 @@ function IntegrationPills({ integrations, connectingProvider, disconnectingProvi
 
           // Google Meet doesn't have its own connect button (piggybacks Google Calendar)
           if (p.id === 'google_meet') return null;
+
+          if (!p.available) {
+            return (
+              <span
+                key={p.id}
+                title={`${p.label} — coming soon`}
+                className={`flex items-center gap-1.5 text-xs ${s.color} border ${s.border}
+                  px-2.5 py-1 rounded-full blur-[1.5px] opacity-40 select-none cursor-not-allowed`}
+              >
+                + {p.label}
+              </span>
+            );
+          }
 
           return (
             <button

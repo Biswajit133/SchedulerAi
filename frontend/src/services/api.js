@@ -88,6 +88,7 @@ export const IntegrationAPI = {
 export const AdminAPI = {
   getProviders: () => api.get('/admin/providers'),
   updateProvider: (name, is_enabled) => api.patch(`/admin/providers/${encodeURIComponent(name)}`, { is_enabled }),
+  updateProviderConfig: (name, config_json) => api.patch(`/admin/providers/${encodeURIComponent(name)}`, { config_json }),
   updateConfig: (config) => api.patch('/admin/config', config),
 };
 
